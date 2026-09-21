@@ -1,0 +1,3 @@
+export default function SettingsPage() {
+  return <main className="shell-gradient min-h-screen px-5 py-10"><div className="mx-auto max-w-2xl"><a href="/dashboard" className="text-sm font-semibold text-brand">← Back to dashboard</a><div className="mt-8 rounded-[28px] border border-slate-200 bg-white p-8 shadow-soft"><p className="text-sm font-semibold text-brand">Settings</p><h1 className="mt-2 text-3xl font-semibold tracking-tight">Your account and calendar.</h1><p className="mt-4 leading-7 text-muted">Timezone and working-day controls are part of the shared programme model. Telegram linking and reminder preferences will appear here.</p></div></div></main>;
+}

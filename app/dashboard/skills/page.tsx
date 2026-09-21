@@ -1,0 +1,3 @@
+export default function SkillsPage() {
+  return <div className="rounded-[28px] border border-slate-200 bg-white p-8 shadow-soft"><p className="text-sm font-semibold text-brand">Experience timeline</p><h1 className="mt-2 text-4xl font-semibold tracking-[-0.05em]">Skills, tools and projects.</h1><p className="mt-4 max-w-xl leading-7 text-muted">As your daily record grows, this space will show what you actually encountered across SIWES. Nothing is added without a source entry.</p><div className="mt-8 rounded-2xl bg-slate-50 p-5 text-sm text-slate-600">Keep logging daily entries to build this timeline.</div></div>;
+}
