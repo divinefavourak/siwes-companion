@@ -1,0 +1,560 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProgrammeStatus {
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum SupervisorType {
+  INDUSTRY
+  INSTITUTION
+}
+
+enum WorkingDayStatus {
+  WORKING
+  NON_WORKING
+}
+
+enum EntryStatus {
+  DRAFT
+  READY_FOR_REVIEW
+  SAVED
+  ARCHIVED
+}
+
+enum RawSource {
+  WEB
+  TELEGRAM
+  VOICE
+  IMPORT
+}
+
+enum GenerationStatus {
+  NOT_REQUESTED
+  PENDING
+  COMPLETED
+  NEEDS_CLARIFICATION
+  FAILED
+}
+
+enum EvidenceKind {
+  FILE
+  URL
+  NOTE
+}
+
+enum EvidenceStatus {
+  PENDING
+  AVAILABLE
+  QUARANTINED
+  REJECTED
+  DELETED
+}
+
+enum SummaryStatus {
+  DRAFT
+  GENERATED
+  EDITED
+  FINAL
+}
+
+enum ReportStatus {
+  DRAFT
+  GENERATED
+  EDITED
+  EXPORTED
+}
+
+enum PresentationStatus {
+  DRAFT
+  GENERATED
+  EDITED
+  EXPORTED
+}
+
+enum DefenseStatus {
+  ACTIVE
+  COMPLETED
+  ABANDONED
+}
+
+enum JobType {
+  GENERATE_ENTRY
+  GENERATE_WEEKLY_SUMMARY
+  GENERATE_MONTHLY_SUMMARY
+  GENERATE_REPORT
+  GENERATE_PRESENTATION
+  SEND_REMINDER
+  DELETE_USER_DATA
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+model User {
+  id               String              @id @default(cuid())
+  name             String?
+  email            String?             @unique
+  emailVerified    DateTime?
+  image            String?
+  timezone         String              @default("Africa/Lagos")
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  deletedAt        DateTime?
+  accounts         Account[]
+  sessions         Session[]
+  programmes       SiwesProgramme[]
+  telegramIdentity TelegramIdentity?
+  linkTokens       TelegramLinkToken[]
+  botState         BotConversationState?
+  auditEvents      AuditEvent[]
+  llmUsages        LlmUsage[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model SiwesProgramme {
+  id                String              @id @default(cuid())
+  userId            String
+  title             String?
+  durationMonths    Int
+  institution       String
+  department        String
+  level             String
+  matricNumber      String
+  organization      String
+  unit              String
+  startDate         DateTime            @db.Date
+  endDate           DateTime            @db.Date
+  timezone          String              @default("Africa/Lagos")
+  status            ProgrammeStatus     @default(ACTIVE)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  supervisors       Supervisor[]
+  workingDays       WorkingDayOverride[]
+  entries           Entry[]
+  weeklySummaries   WeeklySummary[]
+  monthlySummaries  MonthlySummary[]
+  skills            Skill[]
+  tools             Tool[]
+  projects          Project[]
+  evidence          Evidence[]
+  report            Report?
+  presentation      Presentation?
+  defenseSessions   DefenseSession[]
+  jobs              Job[]
+  auditEvents       AuditEvent[]
+  llmUsages         LlmUsage[]
+
+  @@index([userId, status])
+  @@index([startDate, endDate])
+}
+
+model Supervisor {
+  id           String         @id @default(cuid())
+  programmeId  String
+  type         SupervisorType
+  name         String
+  email        String?
+  phone        String?
+  role         String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  programme    SiwesProgramme @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+
+  @@index([programmeId, type])
+}
+
+model WorkingDayOverride {
+  id          String            @id @default(cuid())
+  programmeId String
+  date        DateTime          @db.Date
+  status      WorkingDayStatus
+  note        String?
+  programme   SiwesProgramme    @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+
+  @@unique([programmeId, date])
+  @@index([programmeId, date, status])
+}
+
+model Entry {
+  id                 String           @id @default(cuid())
+  programmeId        String
+  workDate           DateTime         @db.Date
+  status             EntryStatus      @default(DRAFT)
+  rawText            String
+  rawSource          RawSource        @default(WEB)
+  generatedText      String?
+  editedText         String?
+  structuredData     Json?
+  generationStatus   GenerationStatus @default(NOT_REQUESTED)
+  generationError    String?
+  version            Int              @default(1)
+  lastEditedAt       DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  programme          SiwesProgramme   @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+  entrySkills        EntrySkill[]
+  entryTools         EntryTool[]
+  entryProjects      EntryProject[]
+  evidence           Evidence[]
+  llmUsages          LlmUsage[]
+
+  @@unique([programmeId, workDate])
+  @@index([programmeId, workDate])
+  @@index([programmeId, status])
+}
+
+model Skill {
+  id          String         @id @default(cuid())
+  programmeId String
+  name        String
+  firstSeenAt DateTime?
+  createdAt   DateTime       @default(now())
+  programme   SiwesProgramme @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+  entries     EntrySkill[]
+
+  @@unique([programmeId, name])
+  @@index([programmeId, name])
+}
+
+model EntrySkill {
+  entryId String
+  skillId String
+  entry   Entry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  skill   Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([entryId, skillId])
+}
+
+model Tool {
+  id          String         @id @default(cuid())
+  programmeId String
+  name        String
+  firstSeenAt DateTime?
+  createdAt   DateTime       @default(now())
+  programme   SiwesProgramme @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+  entries     EntryTool[]
+
+  @@unique([programmeId, name])
+  @@index([programmeId, name])
+}
+
+model EntryTool {
+  entryId String
+  toolId  String
+  entry   Entry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  tool    Tool  @relation(fields: [toolId], references: [id], onDelete: Cascade)
+
+  @@id([entryId, toolId])
+}
+
+model Project {
+  id          String         @id @default(cuid())
+  programmeId String
+  name        String
+  description String?
+  status      String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  programme   SiwesProgramme @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+  entries     EntryProject[]
+  evidence    Evidence[]
+
+  @@unique([programmeId, name])
+  @@index([programmeId, name])
+}
+
+model EntryProject {
+  entryId   String
+  projectId String
+  entry     Entry   @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@id([entryId, projectId])
+}
+
+model Evidence {
+  id          String          @id @default(cuid())
+  programmeId String
+  entryId     String?
+  projectId   String?
+  kind        EvidenceKind
+  status      EvidenceStatus  @default(PENDING)
+  title       String
+  note        String?
+  fileKey     String?
+  fileName    String?
+  mimeType    String?
+  byteSize    Int?
+  url         String?
+  checksum    String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  programme   SiwesProgramme  @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+  entry       Entry?          @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  project     Project?        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([programmeId, createdAt])
+  @@index([entryId])
+  @@index([projectId])
+}
+
+model WeeklySummary {
+  id              String         @id @default(cuid())
+  programmeId     String
+  weekStartDate   DateTime       @db.Date
+  weekEndDate     DateTime       @db.Date
+  status          SummaryStatus  @default(DRAFT)
+  generatedText   String?
+  editedText      String?
+  sourceEntryIds  Json
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  programme       SiwesProgramme @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+
+  @@unique([programmeId, weekStartDate])
+  @@index([programmeId, weekStartDate])
+}
+
+model MonthlySummary {
+  id              String         @id @default(cuid())
+  programmeId     String
+  monthNumber     Int
+  monthStartDate  DateTime       @db.Date
+  monthEndDate    DateTime       @db.Date
+  status          SummaryStatus  @default(DRAFT)
+  generatedText   String?
+  editedText      String?
+  sourceEntryIds  Json
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  programme       SiwesProgramme @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+
+  @@unique([programmeId, monthNumber])
+  @@index([programmeId, monthStartDate])
+}
+
+model Report {
+  id          String         @id @default(cuid())
+  programmeId String         @unique
+  status      ReportStatus   @default(DRAFT)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  programme   SiwesProgramme @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+  sections    ReportSection[]
+}
+
+model ReportSection {
+  id              String       @id @default(cuid())
+  reportId        String
+  sectionKey      String
+  title           String
+  position        Int
+  generatedText   String?
+  editedText      String?
+  sourceEntryIds  Json
+  updatedAt       DateTime     @updatedAt
+  report          Report       @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, sectionKey])
+  @@unique([reportId, position])
+  @@index([reportId, position])
+}
+
+model Presentation {
+  id          String             @id @default(cuid())
+  programmeId String             @unique
+  status      PresentationStatus @default(DRAFT)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  programme   SiwesProgramme     @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+  slides      PresentationSlide[]
+}
+
+model PresentationSlide {
+  id             String       @id @default(cuid())
+  presentationId String
+  position       Int
+  title          String
+  bullets        Json
+  speakerNotes   String?
+  keyPoint       String?
+  sourceEntryIds Json
+  presentation   Presentation @relation(fields: [presentationId], references: [id], onDelete: Cascade)
+
+  @@unique([presentationId, position])
+  @@index([presentationId, position])
+}
+
+model DefenseSession {
+  id          String         @id @default(cuid())
+  programmeId String
+  status      DefenseStatus  @default(ACTIVE)
+  startedAt   DateTime       @default(now())
+  endedAt     DateTime?
+  programme   SiwesProgramme @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+  turns       DefenseTurn[]
+
+  @@index([programmeId, startedAt])
+}
+
+model DefenseTurn {
+  id          String         @id @default(cuid())
+  sessionId   String
+  position    Int
+  question    String
+  answer      String?
+  followUp    String?
+  feedback    Json?
+  createdAt   DateTime       @default(now())
+  session     DefenseSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, position])
+  @@index([sessionId, position])
+}
+
+model TelegramIdentity {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  telegramUserId String   @unique
+  username       String?
+  firstName      String?
+  linkedAt       DateTime @default(now())
+  lastSeenAt     DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model TelegramLinkToken {
+  id             String   @id @default(cuid())
+  userId         String
+  tokenHash      String   @unique
+  telegramUserId String?
+  expiresAt      DateTime
+  usedAt         DateTime?
+  createdAt      DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model BotConversationState {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  telegramChatId String   @unique
+  state          String
+  payload        Json
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model TelegramUpdate {
+  id         String   @id @default(cuid())
+  updateId   String   @unique
+  receivedAt DateTime @default(now())
+}
+
+model Job {
+  id          String         @id @default(cuid())
+  programmeId String?
+  type        JobType
+  status      JobStatus      @default(QUEUED)
+  payload     Json
+  attempts    Int            @default(0)
+  runAfter    DateTime       @default(now())
+  lockedAt    DateTime?
+  lockedBy    String?
+  lastError   String?
+  completedAt DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  programme   SiwesProgramme? @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+
+  @@index([status, runAfter])
+  @@index([programmeId, type])
+}
+
+model AuditEvent {
+  id          String          @id @default(cuid())
+  userId      String
+  programmeId String?
+  action      String
+  entityType  String
+  entityId    String
+  metadata    Json
+  createdAt   DateTime        @default(now())
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  programme   SiwesProgramme? @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([programmeId, entityType, entityId])
+}
+
+model LlmUsage {
+  id             String          @id @default(cuid())
+  userId         String?
+  programmeId    String?
+  entryId        String?
+  provider       String
+  model          String
+  purpose        String
+  promptTokens   Int             @default(0)
+  outputTokens   Int             @default(0)
+  estimatedCost  Decimal         @default(0) @db.Decimal(12, 6)
+  createdAt      DateTime        @default(now())
+  user           User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  programme      SiwesProgramme? @relation(fields: [programmeId], references: [id], onDelete: SetNull)
+  entry          Entry?          @relation(fields: [entryId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([programmeId, purpose])
+}
