@@ -25,6 +25,11 @@ import { emptyStructuredData, findGroundingViolations, withClarification } from 
 import { createDailyEntryGenerator } from "@/src/core/ai/daily-entry-generator";
 import { fakeDailyEntryProvider } from "@/src/core/ai/fake-provider";
 import { consumeTelegramLinkToken, createTelegramLinkToken, hashLinkToken, type TelegramLinkRepository } from "@/src/core/telegram/link-service";
+import { buildSummaryDraft, reviewedEntryFromRecord } from "@/src/core/summaries/summary-service";
+import { buildReportDraft } from "@/src/core/reports/report-service";
+import { buildPresentationDraft } from "@/src/core/reports/presentation-service";
+import { buildDefenseFeedback, nextGroundedQuestion } from "@/src/core/defense/defense-service";
+import { createEvidence, type EvidenceInput, type EvidenceRepository } from "@/src/core/evidence/evidence-service";
 
 const calendar: ProgrammeCalendar = {
   startDate: "2026-09-01",
@@ -279,5 +284,63 @@ describe("Telegram link tokens", () => {
     await expect(consumeTelegramLinkToken(repository, "token-token-token-token", "telegram-1", {})).rejects.toMatchObject({ code: "CONFLICT", message: "used" });
     repository.mode = "unknown";
     await expect(consumeTelegramLinkToken(repository, "token-token-token-token", "telegram-1", {}, new Date("2026-09-21T10:00:00.000Z"))).rejects.toMatchObject({ code: "CONFLICT" });
+  });
+});
+
+describe("compile and defense services", () => {
+  const reviewed = reviewedEntryFromRecord({ id: "e-1", workDate: "2026-09-01", rawText: "watched", generatedText: "Observed the router setup.", editedText: null, structuredData: { skills: ["observation"], tools: ["router"], projects: [], challenges: [] } });
+  const second = { ...reviewed, id: "e-2", date: "2026-09-02" as const, text: "Tested connectivity.", skills: ["testing"], tools: ["router"], projects: ["network check"], challenges: ["unstable connection"] };
+
+  it("builds compact weekly or monthly summaries from reviewed records", () => {
+    expect(buildSummaryDraft([], "Week 1")).toMatchObject({ summary: "No reviewed work was recorded for Week 1.", sourceEntryIds: [] });
+    const summary = buildSummaryDraft([second, reviewed, { ...reviewed, id: "e-3", date: "2026-09-03", text: "Tested connectivity." }], "Week 1");
+    expect(summary.summary).toContain("3 days");
+    expect(summary.sourceEntryIds).toEqual(["e-1", "e-2", "e-3"]);
+    expect(summary.tools).toEqual(["router"]);
+    expect(buildSummaryDraft([reviewed], "Day").summary).toContain("1 day.");
+    expect(buildSummaryDraft([{ ...reviewed, text: " ", skills: [""], tools: [""], projects: [""], challenges: [""] }], "Empty").workCompleted).toEqual([]);
+    expect(reviewedEntryFromRecord({ id: reviewed.id, workDate: reviewed.date, rawText: "raw", generatedText: null, editedText: "edited", structuredData: null }).text).toBe("edited");
+    expect(reviewedEntryFromRecord({ id: reviewed.id, workDate: reviewed.date, rawText: "raw", generatedText: null, editedText: null, structuredData: null }).text).toBe("raw");
+  });
+
+  it("builds report and presentation sections with explicit gaps", () => {
+    const context = { institution: "Demo University", department: "Computer Science", organization: "Demo Ltd", unit: "Engineering", startDate: "2026-09-01" as const, endDate: "2026-11-30" as const, entries: [reviewed, second] };
+    const report = buildReportDraft(context);
+    expect(report.sections).toHaveLength(11);
+    expect(report.sections.find((section) => section.sectionKey === "activities-carried-out")?.generatedText).toContain("router");
+    expect(report.sections.find((section) => section.sectionKey === "recommendations")?.unsupportedGaps).toHaveLength(1);
+    const emptyReport = buildReportDraft({ ...context, entries: [] });
+    expect(emptyReport.sections.find((section) => section.sectionKey === "activities-carried-out")?.unsupportedGaps).toHaveLength(1);
+    const presentation = buildPresentationDraft(context);
+    expect(presentation.slides).toHaveLength(5);
+    expect(presentation.slides[3].bullets).toEqual(["network check"]);
+    expect(buildPresentationDraft({ ...context, entries: [] }).slides[1].unsupportedGaps).toHaveLength(1);
+  });
+
+  it("generates grounded defense questions and qualitative feedback", () => {
+    expect(nextGroundedQuestion([reviewed, second], [reviewed.id])).toMatchObject({ sourceEntryIds: ["e-2"] });
+    expect(nextGroundedQuestion([reviewed], [reviewed.id]).sourceEntryIds).toEqual([]);
+    const feedback = buildDefenseFeedback({ turns: [{ question: "Q1", answer: "A1", topic: "tools", struggled: false }, { question: "Q2", answer: null, topic: "projects", struggled: true }, { question: "Q3", answer: "A3", topic: "tools", struggled: true }] });
+    expect(feedback.questionsAnswered).toEqual(["Q1", "Q3"]);
+    expect(feedback.topicsCovered).toEqual(["tools", "projects"]);
+    expect(feedback.areasToReview).toEqual(["projects", "tools"]);
+    expect(feedback.questionsStruggledWith).toEqual(["Q2", "Q3"]);
+  });
+});
+
+describe("evidence service", () => {
+  const repository: EvidenceRepository = {
+    async create(input: EvidenceInput) { return { ...input, id: "evidence-1", status: "AVAILABLE" as const }; },
+    async list() { return []; }
+  };
+
+  it("validates the evidence kind-specific fields", async () => {
+    await expect(createEvidence(repository, { userId: "u", programmeId: "p", kind: "URL", title: "Docs" })).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    await expect(createEvidence(repository, { userId: "u", programmeId: "p", kind: "URL", title: "Docs", url: "not-url" })).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    await expect(createEvidence(repository, { userId: "u", programmeId: "p", kind: "NOTE", title: "Note" })).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    await expect(createEvidence(repository, { userId: "u", programmeId: "p", kind: "FILE", title: "Screenshot" })).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    await expect(createEvidence(repository, { userId: "u", programmeId: "p", kind: "URL", title: "Docs", url: "https://example.com" })).resolves.toMatchObject({ status: "AVAILABLE" });
+    await expect(createEvidence(repository, { userId: "u", programmeId: "p", kind: "NOTE", title: "Note", note: "A useful reminder" })).resolves.toMatchObject({ status: "AVAILABLE" });
+    await expect(createEvidence(repository, { userId: "u", programmeId: "p", kind: "FILE", title: "Screenshot", fileName: "shot.png", mimeType: "image/png", byteSize: 100 })).resolves.toMatchObject({ id: "evidence-1" });
   });
 });
