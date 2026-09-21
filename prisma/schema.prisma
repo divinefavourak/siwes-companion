@@ -175,6 +175,7 @@ model SiwesProgramme {
   startDate         DateTime            @db.Date
   endDate           DateTime            @db.Date
   timezone          String              @default("Africa/Lagos")
+  workingWeekdays   Json                @default("[1,2,3,4,5]")
   status            ProgrammeStatus     @default(ACTIVE)
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt

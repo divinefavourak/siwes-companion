@@ -53,7 +53,7 @@ erDiagram
 | Table | Important fields and constraints |
 | --- | --- |
 | `User` | Auth identity, timezone, soft-delete marker. `email` unique when present. |
-| `SiwesProgramme` | Owner, dates, duration, placement details, timezone, status. Active programme indexed by owner. |
+| `SiwesProgramme` | Owner, dates, duration, placement details, timezone, persisted default working weekdays and status. Active programme indexed by owner. |
 | `WorkingDayOverride` | `programmeId + date` unique; explicit WORKING/NON_WORKING overrides weekday defaults. |
 | `Entry` | `programmeId + workDate` unique; raw/generated/edited text; structured JSON; version for optimistic concurrency. |
 | `Skill`, `Tool`, `Project` | Programme-scoped names unique within a programme. |
