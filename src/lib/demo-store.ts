@@ -9,8 +9,12 @@ import type {
   GeneratedEntry
 } from "@/src/core/entries/types";
 
-const programmes = new Map<string, Programme>();
-const entries = new Map<string, Entry>();
+type DemoState = { programmes: Map<string, Programme>; entries: Map<string, Entry> };
+const globalForDemo = globalThis as typeof globalThis & { __siwesDemoState?: DemoState };
+const demoState = globalForDemo.__siwesDemoState ?? { programmes: new Map<string, Programme>(), entries: new Map<string, Entry>() };
+globalForDemo.__siwesDemoState = demoState;
+const programmes = demoState.programmes;
+const entries = demoState.entries;
 
 function demoProgramme(userId: string): Programme {
   const existing = programmes.get(userId);

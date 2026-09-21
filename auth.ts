@@ -15,4 +15,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       ]
     : [],
   pages: { signIn: "/sign-in" }
+  ,callbacks: {
+    jwt({ token, user }) {
+      if (user?.id) token.id = user.id;
+      return token;
+    },
+    session({ session, token }) {
+      if (session.user) session.user.id = String(token.id ?? token.sub ?? "");
+      return session;
+    }
+  }
 });

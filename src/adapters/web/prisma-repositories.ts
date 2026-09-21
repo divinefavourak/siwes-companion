@@ -177,6 +177,8 @@ export class PrismaEntryRepository implements EntryRepository {
   }
 
   async upsertRawNote(input: CaptureDailyNoteInput) {
+    const programme = await prisma.siwesProgramme.findFirst({ where: { id: input.programmeId, userId: input.userId }, select: { id: true } });
+    if (!programme) throw new AppError("FORBIDDEN", "Programme not found");
     const row = await prisma.entry.upsert({
       where: { programmeId_workDate: { programmeId: input.programmeId, workDate: dateValue(input.workDate) } },
       create: {
