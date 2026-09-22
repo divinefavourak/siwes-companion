@@ -63,6 +63,18 @@ export class DemoProgrammeRepository implements ProgrammeRepository {
     const programme = programmes.get(userId) ?? demoProgramme(userId);
     return programme.id === programmeId ? programme : null;
   }
+
+  async updateSettings(userId: string, programmeId: string, settings: { workingWeekdays?: number[]; timezone?: string }) {
+    const programme = programmes.get(userId) ?? demoProgramme(userId);
+    if (programme.id !== programmeId) throw new AppError("NOT_FOUND", "Programme not found");
+    const updated: Programme = {
+      ...programme,
+      ...(settings.workingWeekdays ? { workingWeekdays: settings.workingWeekdays } : {}),
+      ...(settings.timezone ? { timezone: settings.timezone } : {})
+    };
+    programmes.set(userId, updated);
+    return updated;
+  }
 }
 
 export class DemoEntryRepository implements EntryRepository {

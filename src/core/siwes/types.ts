@@ -29,8 +29,17 @@ export type CreateProgrammeInput = {
   workingWeekdays?: number[];
 };
 
+export type UpdateProgrammeSettingsInput = {
+  userId: string;
+  programmeId: string;
+  workingWeekdays?: number[];
+  timezone?: string;
+};
+
 export interface ProgrammeRepository {
   create(input: CreateProgrammeInput & { timezone: string; workingWeekdays: number[] }): Promise<Programme>;
   findActiveByUser(userId: string): Promise<Programme | null>;
   findOwnedById(userId: string, programmeId: string): Promise<Programme | null>;
+  updateSettings(userId: string, programmeId: string, settings: { workingWeekdays?: number[]; timezone?: string }): Promise<Programme>;
 }
+

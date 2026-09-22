@@ -10,7 +10,11 @@ export async function POST() {
     if (!viewer) return NextResponse.json({ error: { code: "UNAUTHENTICATED", message: "Sign in required" } }, { status: 401 });
     const token = await createTelegramLinkToken(new PrismaTelegramRepository(), viewer.id);
     const botUsername = process.env.TELEGRAM_BOT_USERNAME ?? "your_bot_username";
-    return NextResponse.json({ expiresAt: token.expiresAt.toISOString(), deepLink: `https://t.me/${botUsername}?start=${token.rawToken}` });
+    return NextResponse.json({
+      expiresAt: token.expiresAt.toISOString(),
+      deepLink: `https://t.me/${botUsername}?start=${token.rawToken}`,
+      rawToken: token.rawToken
+    });
   } catch (error) {
     return jsonError(error);
   }

@@ -15,7 +15,7 @@ import {
   type ProgrammeCalendar
 } from "@/src/core/shared/date";
 import { randomIdGenerator } from "@/src/core/shared/id";
-import { createProgramme, createProgrammeSchema } from "@/src/core/siwes/siwes-service";
+import { createProgramme, createProgrammeSchema, updateProgrammeSettings } from "@/src/core/siwes/siwes-service";
 import type { CreateProgrammeInput, Programme, ProgrammeRepository } from "@/src/core/siwes/types";
 import { captureDailyNote, generateEntry, saveEditedEntry } from "@/src/core/entries/entry-service";
 import { generatedEntrySchema } from "@/src/core/entries/entry-schema";
@@ -93,6 +93,15 @@ class FakeProgrammeRepository implements ProgrammeRepository {
   async create(input: Parameters<ProgrammeRepository["create"]>[0]) { this.input = input; return { ...input, id: "programme-1", overrides: [], status: "ACTIVE" as const, durationMonths: input.durationMonths } as Programme; }
   async findActiveByUser() { return this.existing; }
   async findOwnedById() { return this.existing; }
+  async updateSettings(_userId: string, _programmeId: string, settings: { workingWeekdays?: number[]; timezone?: string }) {
+    if (!this.existing) throw new AppError("NOT_FOUND", "Programme not found");
+    this.existing = {
+      ...this.existing,
+      ...(settings.workingWeekdays ? { workingWeekdays: settings.workingWeekdays } : {}),
+      ...(settings.timezone ? { timezone: settings.timezone } : {})
+    };
+    return this.existing;
+  }
 }
 
 describe("date rules", () => {
@@ -163,6 +172,23 @@ describe("programme service", () => {
   it("blocks a second active programme", async () => {
     const repository = new FakeProgrammeRepository(); repository.existing = { id: "old", ...input, timezone: "Africa/Lagos", workingWeekdays: [1], overrides: [], status: "ACTIVE" };
     await expect(createProgramme(repository, input)).rejects.toMatchObject({ code: "CONFLICT" });
+  });
+
+  it("validates and updates programme calendar settings", async () => {
+    const repository = new FakeProgrammeRepository();
+    await expect(updateProgrammeSettings(repository, { userId: "user-1", programmeId: "programme-1" })).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    await expect(updateProgrammeSettings(repository, { userId: "user-1", programmeId: "programme-1", workingWeekdays: [9] })).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    await expect(updateProgrammeSettings(repository, { userId: "user-1", programmeId: "programme-1", workingWeekdays: [1, 2, 3] })).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    repository.existing = { id: "programme-1", ...input, timezone: "Africa/Lagos", workingWeekdays: [1, 2, 3, 4, 5], overrides: [], status: "ACTIVE" };
+    const updated = await updateProgrammeSettings(repository, {
+      userId: "user-1",
+      programmeId: "programme-1",
+      workingWeekdays: [1, 2, 3, 4, 5, 6],
+      timezone: "UTC"
+    });
+    expect(updated.workingWeekdays).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(updated.timezone).toBe("UTC");
   });
 });
 

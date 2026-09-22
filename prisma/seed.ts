@@ -4,15 +4,22 @@ const prisma = new PrismaClient();
 
 async function main() {
   const email = "demo@siwes.local";
+  const demoUserId = "demo-user";
+
+  const existingByEmail = await prisma.user.findUnique({ where: { email } });
+  if (existingByEmail && existingByEmail.id !== demoUserId) {
+    await prisma.user.delete({ where: { id: existingByEmail.id } });
+  }
+
   const user = await prisma.user.upsert({
-    where: { email },
-    update: { name: "Demo Student" },
-    create: { email, name: "Demo Student" }
+    where: { id: demoUserId },
+    update: { name: "Demo Student", email },
+    create: { id: demoUserId, email, name: "Demo Student" }
   });
 
   await prisma.siwesProgramme.upsert({
     where: { id: "demo-programme" },
-    update: {},
+    update: { userId: user.id },
     create: {
       id: "demo-programme",
       userId: user.id,

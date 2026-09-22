@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { prisma } from "@/src/lib/prisma";
+import { ensureUserExists, prisma } from "@/src/lib/prisma";
 import { AppError } from "@/src/core/shared/errors";
 import { parseDateOnly, toDateOnly } from "@/src/core/shared/date";
 import type { Programme, ProgrammeRepository } from "@/src/core/siwes/types";
@@ -66,6 +66,7 @@ function mapProgramme(row: {
 
 export class PrismaProgrammeRepository implements ProgrammeRepository {
   async create(input: Parameters<ProgrammeRepository["create"]>[0]): Promise<Programme> {
+    await ensureUserExists(input.userId);
     const row = await prisma.siwesProgramme.create({
       data: {
         userId: input.userId,
@@ -102,6 +103,18 @@ export class PrismaProgrammeRepository implements ProgrammeRepository {
       include: { workingDays: true }
     });
     return row ? mapProgramme(row) : null;
+  }
+
+  async updateSettings(userId: string, programmeId: string, settings: { workingWeekdays?: number[]; timezone?: string }): Promise<Programme> {
+    const row = await prisma.siwesProgramme.update({
+      where: { id: programmeId, userId },
+      data: {
+        ...(settings.workingWeekdays ? { workingWeekdays: settings.workingWeekdays } : {}),
+        ...(settings.timezone ? { timezone: settings.timezone } : {})
+      },
+      include: { workingDays: true }
+    });
+    return mapProgramme(row);
   }
 }
 

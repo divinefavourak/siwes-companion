@@ -58,3 +58,35 @@ export async function createProgramme(
     endDate: parseDateOnly(parsed.data.endDate)
   });
 }
+
+export const updateProgrammeSettingsSchema = z.object({
+  userId: z.string().min(1),
+  programmeId: z.string().min(1),
+  workingWeekdays: z.array(z.number().int().min(0).max(6)).min(1).max(7).optional(),
+  timezone: z.string().min(1).optional()
+}).refine((data) => data.workingWeekdays !== undefined || data.timezone !== undefined, {
+  message: "At least one setting must be provided to update"
+});
+
+export async function updateProgrammeSettings(
+  repository: ProgrammeRepository,
+  input: { userId: string; programmeId: string; workingWeekdays?: number[]; timezone?: string }
+): Promise<Programme> {
+  const parsed = updateProgrammeSettingsSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new AppError("VALIDATION_ERROR", "Programme settings are invalid", {
+      issues: parsed.error.issues
+    });
+  }
+
+  const existing = await repository.findOwnedById(parsed.data.userId, parsed.data.programmeId);
+  if (!existing) {
+    throw new AppError("NOT_FOUND", "Programme not found");
+  }
+
+  return repository.updateSettings(parsed.data.userId, parsed.data.programmeId, {
+    workingWeekdays: parsed.data.workingWeekdays,
+    timezone: parsed.data.timezone
+  });
+}
+
