@@ -10,10 +10,10 @@ This covers provider abstraction, model tiers, prompts, schemas, context strateg
 
 ## Decisions
 
-- Anthropic is the default provider through an internal `LlmProvider` interface.
-- A fast/cheap configured model handles daily entries, classification and clarifying questions; a stronger configured model handles reports, presentation reasoning and mock-defense follow-ups.
-- Model IDs, token limits and prices are configuration, not source-code constants. Verify model names and current pricing against Anthropic's official API documentation at build and deployment time.
-- Structured JSON is required for every task. Zod validation rejects extra/missing/invalid fields.
+- Groq API is the primary LLM provider through the internal `JsonLlmProvider` interface, delivering ultra-fast inference with Llama models. Anthropic is supported as an alternative provider, and an offline fake provider is used for zero-credential local development and automated testing.
+- Configurable models handle daily entries, classification and structured extractions (e.g. `llama-3.3-70b-versatile` or `llama-3.1-8b-instant`).
+- Model IDs, token limits and endpoints are configuration, not source-code constants.
+- Structured JSON (`response_format: { type: "json_object" }`) is required for every task. Zod validation rejects extra/missing/invalid fields.
 - Student text, filenames, evidence content and imported documents are untrusted data, never instructions.
 
 ## Provider contract

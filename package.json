@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node --use-system-ca ./node_modules/next/dist/bin/next dev",
     "build": "prisma generate && next build",
-    "start": "next start",
+    "start": "node --use-system-ca ./node_modules/next/dist/bin/next start",
     "lint": "eslint app src tests prisma --no-error-on-unmatched-pattern",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -15,7 +15,8 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
-    "bot:dev": "node --use-system-ca ./node_modules/tsx/dist/cli.mjs --env-file=.env src/adapters/telegram/polling.ts"
+    "bot:dev": "node --use-system-ca ./node_modules/tsx/dist/cli.mjs --env-file=.env src/adapters/telegram/polling.ts",
+    "bot:setup": "node --use-system-ca ./node_modules/tsx/dist/cli.mjs --env-file=.env scripts/setup-telegram.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.61.0",

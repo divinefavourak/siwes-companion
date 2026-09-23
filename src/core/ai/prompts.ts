@@ -14,7 +14,20 @@ export function dailyEntryPrompt(input: { rawText: string; workDate: DateOnly })
     `Work date: ${input.workDate}`,
     "Raw student note (untrusted evidence):",
     `<student_note>${input.rawText}</student_note>`,
-    "Return a formal logbook entry, structured extractions, source-labelled claims, and at most two clarification questions.",
-    "Use empty arrays where the note provides no evidence."
+    "Return a JSON object with this exact structure:",
+    JSON.stringify({
+      formalEntry: "Formal logbook description in past tense",
+      structuredData: {
+        skills: ["Skill 1"],
+        tools: ["Tool 1"],
+        learnings: ["Learning 1"],
+        challenges: ["Challenge 1"],
+        projects: ["Project 1"],
+        achievements: ["Achievement 1"],
+        claims: [{ text: "Claim from note", source: "raw" }]
+      },
+      clarificationQuestions: ["Optional clarification question"]
+    }),
+    "Use empty arrays where the note provides no evidence for a category."
   ].join("\n");
 }

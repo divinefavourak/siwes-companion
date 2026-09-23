@@ -451,10 +451,159 @@ export function createTelegramBot(input: {
       });
     }
 
-    const state = await input.telegram.getConversationState(userId);
-    if (!state) return;
+    async function processActivityNote(
+      ctx: Context,
+      userId: string,
+      programmeId: string,
+      workDate: `${number}-${number}-${number}`,
+      noteText: string
+    ) {
+      if (noteText.length < 3) {
+        return ctx.reply("Your note is too short. Please provide at least a few words describing what you did.");
+      }
 
+      await ctx.replyWithChatAction("typing");
+      try {
+        const entry = await captureDailyNote(input.entries, {
+          userId,
+          programmeId,
+          workDate,
+          rawText: noteText,
+          source: "TELEGRAM"
+        });
+
+        await ctx.reply("🤖 <i>Formatting your logbook entry with AI...</i>", { parse_mode: "HTML" });
+        await ctx.replyWithChatAction("typing");
+
+        const generated = await generateEntry(input.entries, input.generator, userId, entry.id);
+        await input.telegram.clearConversationState(userId);
+
+        const keyboard = new InlineKeyboard()
+          .text("✅ Save Entry", `entry:save:${generated.id}:${generated.version}`)
+          .text("✏️ Edit Text", `entry:edit:${generated.id}:${generated.version}`)
+          .row()
+          .text("🔄 Re-generate", `entry:regenerate:${generated.id}`);
+
+        let replyMessage = `✨ <b>AI Grounded Draft (${workDate})</b>\n\n${escapeTelegramHtml(generated.generatedText ?? generated.rawText)}`;
+
+        if (generated.generationStatus === "NEEDS_CLARIFICATION") {
+          replyMessage += `\n\n<i>Note: You can add more details with Edit Text or save this draft directly.</i>`;
+        } else {
+          replyMessage += `\n\n<i>Review this draft. You can approve it as-is or tap Edit Text to adjust.</i>`;
+        }
+
+        return replyChunks(ctx, replyMessage, keyboard);
+      } catch (error) {
+        console.error("Error generating entry on Telegram:", error);
+        return ctx.reply(
+          error instanceof AppError
+            ? `⚠️ ${error.message}`
+            : "I could not create a draft right now. Your note was saved; you can try again."
+        );
+      }
+    }
+
+    const state = await input.telegram.getConversationState(userId);
     const text = ctx.message.text.trim();
+
+    if (!state) {
+      const programme = await input.programmes.findActiveByUser(userId);
+      if (!programme) {
+        return ctx.reply(
+          "👋 You haven't set up your SIWES profile yet.\n\nTap below to set up your profile or link your web account:",
+          {
+            reply_markup: new InlineKeyboard()
+              .text("🚀 Setup SIWES on Telegram", "onboard:start")
+              .row()
+              .text("🔗 Link Web Account", "onboard:link")
+          }
+        );
+      }
+
+      const today = dateFromTimestampInTimeZone(new Date(), programme.timezone);
+      const lower = text.toLowerCase().trim();
+
+      // Check if user typed "log", "log today", "log today's entry", etc.
+      if (
+        lower === "log" ||
+        lower === "log today" ||
+        lower === "log today's entry" ||
+        lower === "log entry" ||
+        lower === "log work" ||
+        lower === "record" ||
+        lower === "entry"
+      ) {
+        await input.telegram.saveConversationState({
+          userId,
+          telegramChatId: String(ctx.chat.id),
+          state: "AWAITING_ACTIVITY",
+          payload: { programmeId: programme.id, workDate: today }
+        });
+        return ctx.reply(
+          `✍️ <b>What did you work on today (${today})?</b>\n\n` +
+          "Send your rough notes or bullet points in your next message. For example:\n" +
+          "<i>\"Configured network switch ports, terminated CAT6 cables, attended team standup\"</i>\n\n" +
+          "SIWES Companion will structure it into a professional daily logbook entry.\n" +
+          "<i>Send /cancel to stop.</i>",
+          { parse_mode: "HTML" }
+        );
+      }
+
+      // Check for prefixed logs, e.g. "log today: I worked on..." or "log: I worked on..."
+      const logPrefixMatch = text.match(/^(?:log(?:\s+today(?:'s)?(?:\s+entry)?)?|\/log)[\s:]+(.+)$/i);
+      if (logPrefixMatch && logPrefixMatch[1]?.trim().length >= 3) {
+        return processActivityNote(ctx, userId, programme.id, today, logPrefixMatch[1].trim());
+      }
+
+      if (lower === "today" || lower === "status") {
+        const entry = await input.entries.findOwnedByDate(userId, programme.id, today);
+        if (!entry) {
+          return ctx.reply(`📝 <b>No entry recorded yet for today (${today}).</b>\n\nSend /log or tap below to capture your activity:`, {
+            parse_mode: "HTML",
+            reply_markup: new InlineKeyboard().text("✍️ Log Today's Work", "cmd:log")
+          });
+        }
+        return replyChunks(
+          ctx,
+          `📅 <b>Logbook Entry for ${today}</b>\n\n${escapeTelegramHtml(entry.editedText ?? entry.generatedText ?? entry.rawText)}`,
+          new InlineKeyboard().text("✏️ Edit Entry", `entry:edit:${entry.id}:${entry.version}`)
+        );
+      }
+
+      if (lower === "week" || lower === "this week") {
+        const { monday, friday } = getWeekBoundaries(today);
+        const weekEntries = await input.entries.listForDateRange(userId, programme.id, monday, friday);
+        return ctx.reply(
+          `📊 <b>Week of ${monday} to ${friday}</b>\n\n<b>Progress:</b> ${weekEntries.length} of 5 working days logged\n\n` +
+          (weekEntries.length === 0 ? "<i>No entries logged this week.</i>" : weekEntries.map((e) => `• <b>${e.workDate}:</b> ${(e.editedText ?? e.generatedText ?? e.rawText).slice(0, 70)}...`).join("\n")),
+          { parse_mode: "HTML", reply_markup: new InlineKeyboard().text("✍️ Log Today", "cmd:log") }
+        );
+      }
+
+      if (lower === "hi" || lower === "hello" || lower === "hey" || lower === "start") {
+        return ctx.reply(
+          `👋 <b>Welcome${ctx.from?.first_name ? `, ${ctx.from.first_name}` : ""}!</b>\n\n` +
+          `Ready to document your industrial training today (${today})?\n\n` +
+          "You can send your daily notes directly to this chat, or choose an option below:",
+          {
+            parse_mode: "HTML",
+            reply_markup: new InlineKeyboard()
+              .text("✍️ Log Today's Work", "cmd:log")
+              .text("📅 Today's Status", "cmd:today")
+              .row()
+              .text("📊 This Week", "cmd:week")
+              .text("🎯 Practice Defense", "cmd:defense")
+          }
+        );
+      }
+
+      if (lower === "help") {
+        return ctx.reply("Send /help to see all commands and instructions.");
+      }
+
+      // Default: the user sent their daily work note directly!
+      return processActivityNote(ctx, userId, programme.id, today, text);
+    }
 
     // Onboarding Step 1: Institution
     if (state.state === "ONBOARDING_INSTITUTION") {
@@ -570,35 +719,7 @@ export function createTelegramBot(input: {
       if (!payload.programmeId || !payload.workDate) {
         return ctx.reply("This draft session expired. Start again with /log.");
       }
-      try {
-        await ctx.replyWithChatAction("typing");
-        const entry = await captureDailyNote(input.entries, {
-          userId,
-          programmeId: payload.programmeId,
-          workDate: payload.workDate,
-          rawText: text,
-          source: "TELEGRAM"
-        });
-
-        const generated = await generateEntry(input.entries, input.generator, userId, entry.id);
-        await input.telegram.clearConversationState(userId);
-
-        const keyboard = new InlineKeyboard()
-          .text("✅ Save Entry", `entry:save:${generated.id}:${generated.version}`)
-          .text("✏️ Edit Text", `entry:edit:${generated.id}:${generated.version}`)
-          .row()
-          .text("🔄 Re-generate", `entry:regenerate:${generated.id}`);
-
-        return replyChunks(
-          ctx,
-          `✨ <b>AI Grounded Draft (${payload.workDate})</b>\n\n` +
-          `${escapeTelegramHtml(generated.generatedText ?? generated.rawText)}\n\n` +
-          `<i>Review this draft. You can approve it as-is or make edits.</i>`,
-          keyboard
-        );
-      } catch (error) {
-        return ctx.reply(error instanceof AppError ? error.message : "I could not create a draft. Your raw note may still be saved; try again.");
-      }
+      return processActivityNote(ctx, userId, payload.programmeId, payload.workDate, text);
     }
   });
 

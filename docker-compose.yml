@@ -3,18 +3,33 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: siwes_companion
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-siwes_companion}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     volumes:
       - siwes-postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d siwes_companion"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-siwes_companion}"]
       interval: 5s
       timeout: 5s
       retries: 12
+    # Only bind locally on host to avoid public exposure
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
+
+  migrator:
+    build:
+      context: .
+      target: builder
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-siwes_companion}
+    command: ["npx", "prisma", "migrate", "deploy"]
 
   app:
     build: .
@@ -22,28 +37,45 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/siwes_companion
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-siwes_companion}
       NODE_ENV: production
       PORT: 3000
     ports:
       - "3000:3000"
 
-  migrator:
+  # Optional: Cloudflare Zero Trust Tunnel daemon
+  # Run alongside app with: docker compose --profile tunnel up -d
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    profiles: ["tunnel"]
+    depends_on:
+      - app
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+
+  # Optional: Long-polling Telegram bot (if not using Telegram webhook)
+  # Run alongside app with: docker compose --profile bot-polling up -d
+  bot-polling:
     build:
       context: .
       target: builder
-    profiles: ["migrate"]
+    restart: unless-stopped
+    profiles: ["bot-polling"]
     depends_on:
       postgres:
         condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/siwes_companion
-    command: ["npx", "prisma", "migrate", "deploy"]
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-siwes_companion}
+    command: ["npx", "tsx", "src/adapters/telegram/polling.ts"]
 
 volumes:
   siwes-postgres:

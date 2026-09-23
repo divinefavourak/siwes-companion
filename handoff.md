@@ -11,7 +11,7 @@ The repository is a runnable Next.js App Router application with PostgreSQL/Pris
 - Dashboard calculates working-day progress and shows phase-aware locked areas.
 - Daily flow autosaves raw text locally, captures it idempotently, generates a grounded draft, supports review/edit/save, and handles version conflicts.
 - Weekly history shows saved and missing working days.
-- Anthropic is the default provider when `ANTHROPIC_API_KEY` is present; local mode uses a deterministic fake provider.
+- Groq is the primary provider when `GROQ_API_KEY` is present; Anthropic is supported when `ANTHROPIC_API_KEY` is present; local mode uses a deterministic fake provider.
 - Telegram webhook, single-use hashed web-to-Telegram linking, `/today`, `/log`, `/cancel`, callbacks and duplicate update protection are wired to the shared core.
 - Prisma schema and initial migration cover future summaries, evidence, reports, presentation, defense, jobs, audit and usage records.
 

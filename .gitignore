@@ -10,3 +10,5 @@ prisma/dev.db
 *.log
 *.tsbuildinfo
 *.pdf
+__pycache__/
+test_groq.py
