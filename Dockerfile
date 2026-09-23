@@ -3,7 +3,7 @@ FROM node:20-alpine AS dependencies
 WORKDIR /app
 RUN apk add --no-cache libc6-compat
 COPY package.json package-lock.json ./
-RUN npm ci --ignore-scripts
+RUN npm ci --ignore-scripts || npm install --ignore-scripts
 
 FROM node:20-alpine AS builder
 
