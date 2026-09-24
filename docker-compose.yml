@@ -13,9 +13,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
-    # Only bind locally on host to avoid public exposure
-    ports:
-      - "127.0.0.1:5432:5432"
 
   migrator:
     build:
