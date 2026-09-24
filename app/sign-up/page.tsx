@@ -5,10 +5,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { ArrowRight, CheckCircle2, Lock, Mail, AlertCircle, Loader2 } from "lucide-react";
+import { ArrowRight, CheckCircle2, Lock, Mail, User, AlertCircle, Loader2 } from "lucide-react";
 
-export default function SignInPage() {
+export default function SignUpPage() {
   const router = useRouter();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -20,15 +21,28 @@ export default function SignInPage() {
     setLoading(true);
 
     try {
-      const res = await signIn("credentials", {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Failed to create account");
+        setLoading(false);
+        return;
+      }
+
+      // Automatically sign in with credentials after registration
+      const signInRes = await signIn("credentials", {
         email,
         password,
         redirect: false
       });
 
-      if (res?.error) {
-        setError("Invalid email or password. Please try again.");
-        setLoading(false);
+      if (signInRes?.error) {
+        router.push("/sign-in?registered=true");
       } else {
         router.push("/dashboard");
         router.refresh();
@@ -58,20 +72,20 @@ export default function SignInPage() {
               SIWES Companion
             </span>
             <span className="block text-xs font-medium text-slate-500">
-              Student Sign In
+              Create Student Account
             </span>
           </div>
         </div>
 
         <div className="inline-flex items-center gap-2 rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-brand">
-          <CheckCircle2 className="size-3.5" /> Welcome Back
+          <CheckCircle2 className="size-3.5" /> Start Your SIWES Journey
         </div>
 
         <h1 className="mt-3 text-2xl font-bold tracking-[-0.03em] text-slate-900">
-          Sign in to your logbook
+          Create your account
         </h1>
         <p className="mt-1.5 text-xs text-slate-600">
-          Access your daily entries, weekly summaries, and defense preparation.
+          Document your daily training, track skills, and prepare your final defense.
         </p>
 
         {error && (
@@ -82,6 +96,24 @@ export default function SignInPage() {
         )}
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5" htmlFor="name">
+              Full Name
+            </label>
+            <div className="relative">
+              <User className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
+              <input
+                id="name"
+                type="text"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Divine Favour"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 pl-10 pr-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand/20 transition"
+              />
+            </div>
+          </div>
+
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1.5" htmlFor="email">
               Email Address
@@ -102,7 +134,7 @@ export default function SignInPage() {
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1.5" htmlFor="password">
-              Password
+              Password (min. 6 characters)
             </label>
             <div className="relative">
               <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
@@ -110,6 +142,7 @@ export default function SignInPage() {
                 id="password"
                 type="password"
                 required
+                minLength={6}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
@@ -127,26 +160,18 @@ export default function SignInPage() {
               <Loader2 className="size-4 animate-spin" />
             ) : (
               <>
-                <span>Sign In to Workspace</span>
+                <span>Create Student Account</span>
                 <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
               </>
             )}
           </button>
         </form>
 
-        <div className="mt-6 flex flex-col items-center gap-3 pt-6 border-t border-slate-100 text-xs text-slate-500">
-          <div>
-            Don&apos;t have an account yet?{" "}
-            <Link href={"/sign-up" as never} className="font-semibold text-brand hover:underline">
-              Create student account
-            </Link>
-          </div>
-
-          <div>
-            <Link href="/dashboard" className="text-slate-400 hover:text-slate-600 transition">
-              Open workspace as guest &rarr;
-            </Link>
-          </div>
+        <div className="mt-6 text-center text-xs text-slate-500">
+          Already have an account?{" "}
+          <Link href="/sign-in" className="font-semibold text-brand hover:underline">
+            Sign In
+          </Link>
         </div>
       </section>
     </main>

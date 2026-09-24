@@ -30,6 +30,11 @@ async function main() {
   console.log("Registering Telegram slash commands menu...");
   await registerBotCommands(bot);
 
+  console.log("Ensuring webhook is removed before polling...");
+  await bot.api.deleteWebhook({ drop_pending_updates: false }).catch((err) => {
+    console.warn("Could not delete webhook (continuing anyway):", err.message);
+  });
+
   console.log("Starting SIWES Companion Telegram Bot in polling mode...");
   await bot.start({
     onStart: (botInfo) => {
