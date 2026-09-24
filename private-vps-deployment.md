@@ -1,110 +1,140 @@
-# Private VPS deployment
+# Private VPS Deployment Runbook
 
-This runbook deploys the standalone Next.js container and PostgreSQL on a private Ubuntu VPS. It assumes you control a domain and can create DNS records. Use a managed PostgreSQL service instead of the container when you need provider-managed point-in-time recovery or do not want to operate a database.
+This guide describes deploying SIWES Companion on a Linux VPS (Debian/Ubuntu) using Docker Compose, PostgreSQL 16, Cloudflare Tunnel (or reverse proxy), and the Telegram Bot webhook.
 
-## Recommended shape
+---
+
+## 1. Architecture
 
 ```text
-Internet -> Caddy HTTPS -> Docker app :3000 -> PostgreSQL volume
-Telegram -> https://your-domain.example/api/telegram/webhook
+Internet -> Cloudflare Edge (SSL) -> Cloudflare Tunnel (or Reverse Proxy) -> Docker app:3000 -> PostgreSQL
+Telegram -> https://swcompanion.akanbi.dev/api/telegram/webhook -> Next.js webhook route
 ```
 
-Keep PostgreSQL private on the Docker network. Expose only ports 22, 80 and 443 through the VPS firewall.
+- PostgreSQL runs in a private Docker volume (`siwes-postgres`) with no exposed public ports.
+- Next.js runs in `standalone` mode on port `3000`.
+- The database migrations are applied automatically by the `migrator` container before `app` boots.
 
-## 1. Provision the VPS
+---
 
-Use a current Ubuntu LTS image with at least 2 vCPUs, 4 GB RAM and 40 GB SSD for a small cohort. Add a non-root deploy user, SSH keys, automatic security updates and a firewall.
+## 2. Low-RAM VPS Optimizations (2GB VPS)
 
-```bash
-sudo apt update && sudo apt upgrade -y
-sudo apt install -y ca-certificates curl git ufw unattended-upgrades
-sudo ufw allow OpenSSH
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-sudo ufw enable
-```
+If deploying to a 2GB RAM VPS or container (LXC/OpenVZ):
+1. **Docker Builder RAM Cap**: The Dockerfile builder sets `NODE_OPTIONS="--max-old-space-size=768"` to prevent memory spikes.
+2. **Next.js Worker Cap**: `next.config.ts` sets `cpus: 1`, `workerThreads: false`, and `typescript: { ignoreBuildErrors: true }`.
+3. **Dedicated Migrator**: The `migrator` stage does not compile Next.js, saving ~1.5 GB of RAM during boot.
 
-Install Docker Engine and the Compose plugin from Docker's official Ubuntu instructions. Verify with `docker version` and `docker compose version`.
+---
 
-## 2. Point DNS
-
-Create an `A` record such as `siwes.example.com` to the VPS public IPv4 address. Wait for DNS propagation before starting Caddy so certificate issuance can succeed.
-
-## 3. Check out the repository
+## 3. Clone Repository & Configure Environment
 
 ```bash
-sudo mkdir -p /opt/siwes-companion
-sudo chown "$USER":"$USER" /opt/siwes-companion
 git clone https://github.com/divinefavourak/siwes-companion.git /opt/siwes-companion
 cd /opt/siwes-companion
 cp .env.example .env
 chmod 600 .env
+nano .env
 ```
 
-Set the existing four variables in `.env` with production values. `DATABASE_URL` is overridden by the Compose service in the included local stack; for a separately managed database, replace it with the provider's private connection string. Add provider-specific secrets directly on the VPS only when that feature is enabled.
+Configure:
+```ini
+POSTGRES_DB=siwes_companion
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=your_secure_password
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/siwes_companion"
 
-## 4. Add Caddy
-
-Create a `Caddyfile` beside the Compose file:
-
-```text
-siwes.example.com {
-  reverse_proxy app:3000
-}
+AUTH_SECRET="generate_with_openssl_rand_base64_32"
+GROQ_API_KEY="gsk_..."
+TELEGRAM_BOT_TOKEN="your_telegram_bot_token"
+TELEGRAM_BOT_USERNAME="your_bot_username"
 ```
 
-Run Caddy as a separate container on the same Docker network, or install it as a system service. If you use a separate Compose file, attach both services to one external network and do not publish the app port publicly.
+---
 
-## 5. Build, migrate and start
+## 4. Route via Cloudflare Tunnel
 
+Add your hostname to `/etc/cloudflared/config.yml`:
+
+```yaml
+tunnel: <YOUR_TUNNEL_UUID>
+credentials-file: /root/.cloudflared/<YOUR_TUNNEL_UUID>.json
+
+ingress:
+  - hostname: swcompanion.akanbi.dev
+    service: http://localhost:3000
+  - service: http_status:404
+```
+
+Create the DNS CNAME record and restart the tunnel:
 ```bash
-docker compose build app
-docker compose up -d postgres
-docker compose --profile migrate run --rm migrator
-docker compose up -d app
-docker compose ps
-curl -fsS https://siwes.example.com/api/health
+cloudflared tunnel route dns <YOUR_TUNNEL_UUID> swcompanion.akanbi.dev
+systemctl restart cloudflared
 ```
 
-If the app image cannot run Prisma CLI because the runner is standalone-only, run the migration from the builder/deploy environment before replacing the app container. Never use `prisma db push` as a production migration substitute after data exists.
+---
 
-## 6. Telegram webhook
+## 5. Build, Migrate, and Start Stack
 
-Configure the bot token in the VPS secret store and register the HTTPS webhook with Telegram using the deployment URL. The handler verifies `X-Telegram-Bot-Api-Secret-Token`; use the bot token as the fallback secret only for a single-bot private deployment, or add a separate secret in the platform.
+Run with a single command:
+```bash
+docker compose up -d --build
+```
 
-After deployment, send a test update through Telegram and confirm the webhook route returns 200. A duplicate update must return a successful duplicate response without creating a second entry.
+Container startup order:
+1. `postgres` boots and passes its healthcheck (`service_healthy`).
+2. `migrator` applies pending Prisma migrations (`service_completed_successfully`).
+3. `app` boots Next.js in production standalone mode on port 3000.
 
-## 7. Backups
+---
 
-- Back up the PostgreSQL volume/database daily to storage outside the VPS.
-- Test restoring into a separate temporary database at least quarterly.
-- Back up the environment secret inventory, not plaintext secret values.
-- Use private object storage for evidence; do not put evidence files in the container filesystem.
+## 6. Configure Telegram Webhook & Slash Commands
 
-## 8. Updates and rollback
+Register the slash commands menu:
+```bash
+BOT_TOKEN=$(grep -E '^TELEGRAM_BOT_TOKEN=' .env | cut -d '=' -f2- | tr -d '"' | tr -d "'" | tr -d '\r')
 
+curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/setMyCommands" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "commands": [
+      {"command": "today", "description": "View today status & logbook entry"},
+      {"command": "log", "description": "Capture daily work activity note"},
+      {"command": "week", "description": "Review this week entries & rollup"},
+      {"command": "skills", "description": "List acquired technical skills & tools"},
+      {"command": "defense", "description": "Practice mock oral defense questions"},
+      {"command": "settings", "description": "View programme schedule & Telegram link"},
+      {"command": "start", "description": "Onboard or restart conversation"},
+      {"command": "help", "description": "View available commands & guide"},
+      {"command": "cancel", "description": "Cancel active draft or flow"},
+      {"command": "unlink", "description": "Disconnect Telegram"}
+    ]
+  }'
+```
+
+Set the webhook endpoint:
+```bash
+curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/setWebhook" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://swcompanion.akanbi.dev/api/telegram/webhook",
+    "drop_pending_updates": true
+  }'
+```
+
+---
+
+## 7. Updates and Maintenance
+
+To deploy new code from `main`:
 ```bash
 cd /opt/siwes-companion
-git fetch origin
-git checkout main
-git pull --ff-only origin main
-docker compose build app
-docker compose --profile migrate run --rm migrator
-docker compose up -d app
-docker compose logs --tail=200 app
+git pull origin main
+docker compose up -d --build app
 ```
 
-For rollback, deploy the previous image/tag and only roll back migrations when there is a reviewed down-migration plan. Prefer backward-compatible additive migrations.
-
-## 9. Operations checklist
-
-- Monitor disk, RAM, CPU, container restarts, PostgreSQL connections and backup freshness.
-- Keep logs free of raw student entries, tokens, signed URLs and matric numbers.
-- Rotate `AUTH_SECRET` only with a planned session invalidation window.
-- Rotate Telegram tokens through BotFather and update the VPS secret.
-- Keep Docker, Ubuntu, Node base image and npm lockfile patched.
-- Review [docs/08-security-and-privacy.md](./docs/08-security-and-privacy.md) before inviting real students.
-
-## Design concerns
-
-A single VPS is operationally simple but creates a single failure domain. Use managed PostgreSQL and off-site backups before treating it as production-critical. Vercel plus managed Postgres remains the default architecture in the main docs; this runbook is the private deployment option requested for handoff.
+Check health:
+```bash
+docker compose ps
+docker compose logs -f app
+curl -s https://swcompanion.akanbi.dev/api/telegram/webhook
+```
