@@ -4,11 +4,10 @@ import Google from "next-auth/providers/google";
 import { env, hasGoogleAuth } from "@/src/lib/env";
 import { prisma } from "@/src/lib/prisma";
 import { verifyPassword } from "@/src/lib/auth-crypto";
+import { authConfig } from "@/auth.config";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  trustHost: true,
-  secret: env.authSecret,
-  session: { strategy: "jwt" },
+  ...authConfig,
   providers: [
     Credentials({
       name: "Student Account",
@@ -44,14 +43,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         ]
       : [])
   ],
-  pages: { signIn: "/sign-in" },
   callbacks: {
-    jwt({ token, user }) {
-      if (user?.id) token.id = user.id;
+    // Fetch role from DB on initial sign-in and embed it in the JWT
+    async jwt({ token, user }) {
+      if (user?.id) {
+        token.id = user.id;
+        const dbUser = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { role: true }
+        });
+        token.role = dbUser?.role ?? "STUDENT";
+      }
       return token;
     },
+    // Spread session from JWT (no DB call — just reads token fields)
     session({ session, token }) {
-      if (session.user) session.user.id = String(token.id ?? token.sub ?? "");
+      if (session.user) {
+        session.user.id = String(token.id ?? token.sub ?? "");
+        session.user.role = ((token.role as string) === "ADMIN" ? "ADMIN" : "STUDENT") as "STUDENT" | "ADMIN";
+      }
       return session;
     }
   }

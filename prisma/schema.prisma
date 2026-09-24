@@ -7,6 +7,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum UserRole {
+  STUDENT
+  ADMIN
+}
+
 enum ProgrammeStatus {
   ACTIVE
   COMPLETED
@@ -115,6 +120,7 @@ model User {
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
   deletedAt        DateTime?
+  role             UserRole            @default(STUDENT)
   accounts         Account[]
   sessions         Session[]
   programmes       SiwesProgramme[]

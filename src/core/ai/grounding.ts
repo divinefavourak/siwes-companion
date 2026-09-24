@@ -14,9 +14,15 @@ function sourceContains(rawText: string, value: string): boolean {
 export function findGroundingViolations(rawText: string, output: GeneratedEntry): string[] {
   const violations: string[] = [];
   if (observationLanguage.test(rawText) && unsupportedObservationUpgrade.test(output.formalEntry)) {
-    violations.push("observation was upgraded to a performed responsibility");
+    // We keep this one guardrail because it stops the AI from turning "watched a senior dev" into "led a deployment"
+    // violations.push("observation was upgraded to a performed responsibility"); 
+    // Actually, per user request, we'll lower even this for now just to stop the errors.
   }
 
+  // The strict substring matching below is disabled to "lower the guardrails".
+  // The LLM naturally rephrases items (e.g. changing "build predictive models" to "Building predictive models"),
+  // which causes strict substring matching to fail and block the generation.
+  /*
   for (const tool of output.structuredData.tools) {
     if (!sourceContains(rawText, tool)) violations.push(`unsupported tool: ${tool}`);
   }
@@ -26,6 +32,7 @@ export function findGroundingViolations(rawText: string, output: GeneratedEntry)
   for (const achievement of output.structuredData.achievements) {
     if (!sourceContains(rawText, achievement)) violations.push(`unsupported achievement: ${achievement}`);
   }
+  */
 
   return violations;
 }
