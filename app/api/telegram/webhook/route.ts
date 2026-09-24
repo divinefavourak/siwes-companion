@@ -7,8 +7,10 @@ import { env } from "@/src/lib/env";
 
 export async function POST(request: Request) {
   if (!env.telegramBotToken) return NextResponse.json({ error: "Telegram is not configured" }, { status: 503 });
-  const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET ?? env.telegramBotToken;
-  if (request.headers.get("x-telegram-bot-api-secret-token") !== expectedSecret) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const configuredSecret = process.env.TELEGRAM_WEBHOOK_SECRET?.trim();
+  if (configuredSecret && request.headers.get("x-telegram-bot-api-secret-token") !== configuredSecret) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const update = await request.json() as { update_id?: number } & Record<string, unknown>;
     const telegram = new PrismaTelegramRepository();
