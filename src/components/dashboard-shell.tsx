@@ -13,12 +13,14 @@ import {
   FileText,
   FolderArchive,
   LayoutDashboard,
+  LogOut,
   Menu,
   Settings2,
   ShieldCheck,
   Target,
   X
 } from "lucide-react";
+import { signOut } from "next-auth/react";
 
 interface NavLinkItem {
   href: Route;
@@ -165,10 +167,20 @@ export function DashboardShell({
             <Link
               href="/settings"
               aria-label="Settings"
+              title="Settings"
               className="grid size-11 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-brand hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
             >
               <Settings2 className="size-4" />
             </Link>
+            <button
+              type="button"
+              onClick={() => signOut({ callbackUrl: "/sign-in" })}
+              aria-label="Sign Out"
+              title="Sign Out"
+              className="grid size-11 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+            >
+              <LogOut className="size-4" />
+            </button>
           </div>
         </header>
 
@@ -244,9 +256,19 @@ export function DashboardShell({
                   })}
                 </nav>
 
-                <div className="pt-4 border-t border-slate-100">
-                  <p className="text-xs text-slate-500 font-medium">Logged in as</p>
-                  <p className="text-sm font-semibold text-slate-800 truncate">{studentName}</p>
+                <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+                  <div className="min-w-0 pr-2">
+                    <p className="text-xs text-slate-500 font-medium">Logged in as</p>
+                    <p className="text-sm font-semibold text-slate-800 truncate">{studentName}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => signOut({ callbackUrl: "/sign-in" })}
+                    className="flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
+                  >
+                    <LogOut className="size-3.5" />
+                    <span>Log Out</span>
+                  </button>
                 </div>
               </motion.div>
             </div>

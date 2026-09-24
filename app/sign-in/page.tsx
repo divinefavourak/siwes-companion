@@ -134,19 +134,11 @@ export default function SignInPage() {
           </button>
         </form>
 
-        <div className="mt-6 flex flex-col items-center gap-3 pt-6 border-t border-slate-100 text-xs text-slate-500">
-          <div>
-            Don&apos;t have an account yet?{" "}
-            <Link href={"/sign-up" as never} className="font-semibold text-brand hover:underline">
-              Create student account
-            </Link>
-          </div>
-
-          <div>
-            <Link href="/dashboard" className="text-slate-400 hover:text-slate-600 transition">
-              Open workspace as guest &rarr;
-            </Link>
-          </div>
+        <div className="mt-6 text-center text-xs text-slate-500">
+          Don&apos;t have an account yet?{" "}
+          <Link href={"/sign-up" as never} className="font-semibold text-brand hover:underline">
+            Create student account
+          </Link>
         </div>
       </section>
     </main>
