@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
+import type { UserFromGetMe } from "grammy/types";
 import { createTelegramBot } from "@/src/adapters/telegram/bot";
 import { PrismaTelegramRepository } from "@/src/adapters/telegram/prisma-telegram-repository";
 import { PrismaEntryRepository, PrismaProgrammeRepository } from "@/src/adapters/web/prisma-repositories";
 import { getDailyGenerator } from "@/src/lib/daily-generator";
 import { env } from "@/src/lib/env";
+
+let cachedBotInfo: UserFromGetMe | null = null;
 
 export async function GET() {
   return NextResponse.json({
@@ -33,6 +36,13 @@ export async function POST(request: Request) {
       programmes: new PrismaProgrammeRepository(),
       generator: getDailyGenerator()
     });
+
+    if (!cachedBotInfo) {
+      await bot.init();
+      cachedBotInfo = bot.botInfo;
+    } else {
+      bot.botInfo = cachedBotInfo;
+    }
 
     await bot.handleUpdate(update as never);
     return NextResponse.json({ ok: true });
