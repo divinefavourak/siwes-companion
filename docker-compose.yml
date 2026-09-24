@@ -20,7 +20,7 @@ services:
   migrator:
     build:
       context: .
-      target: builder
+      target: migrator
     restart: "no"
     depends_on:
       postgres:

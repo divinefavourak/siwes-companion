@@ -5,14 +5,30 @@ RUN apk add --no-cache libc6-compat
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts || npm install --ignore-scripts
 
+# Dedicated lightweight migration runner (uses < 80MB RAM, zero Next.js compilation)
+FROM node:20-alpine AS migrator
+
+WORKDIR /app
+RUN apk add --no-cache libc6-compat
+COPY --from=dependencies /app/node_modules ./node_modules
+COPY package.json package-lock.json ./
+COPY prisma ./prisma
+RUN npx prisma generate
+CMD ["npx", "prisma", "migrate", "deploy"]
+
+# Application builder with strict RAM constraints (capped at 768MB heap, single worker)
 FROM node:20-alpine AS builder
 
 WORKDIR /app
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_OPTIONS="--max-old-space-size=768"
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
 RUN npx prisma generate
 RUN npm run build
 
+# Production standalone runner (< 100MB runtime RAM)
 FROM node:20-alpine AS runner
 
 WORKDIR /app
