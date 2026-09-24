@@ -60,7 +60,7 @@ export default function SignUpPage() {
           <div className="relative size-12 shrink-0 overflow-hidden rounded-2xl border border-sky-100 bg-white p-1 shadow-sm">
             <Image
               src="/r2rlogo.png"
-              alt="R2R SIWES Companion"
+              alt="SIWES Companion"
               width={48}
               height={48}
               className="size-full object-contain"

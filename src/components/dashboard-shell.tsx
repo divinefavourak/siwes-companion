@@ -55,7 +55,7 @@ export function DashboardShell({
           <div className="relative size-10 shrink-0 overflow-hidden rounded-xl border border-sky-100 bg-white p-1 shadow-sm">
             <Image
               src="/r2rlogo.png"
-              alt="R2R SIWES Companion"
+              alt="SIWES Companion"
               width={40}
               height={40}
               className="size-full object-contain"
@@ -67,7 +67,7 @@ export function DashboardShell({
               SIWES Companion
             </span>
             <span className="block text-[11px] font-medium text-slate-400">
-              R2R Industrial Logbook
+              School Industrial Logbook
             </span>
           </div>
         </Link>
