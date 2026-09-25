@@ -10,7 +10,7 @@ async function logLlmUsage(
   model: string,
   usage?: { prompt_tokens?: number; completion_tokens?: number }
 ) {
-  if (!process.env.DATABASE_URL || process.env.NODE_ENV === "test") return;
+  if (!process.env.DATABASE_URL || (process.env.NODE_ENV as string) === "test") return;
   const context = llmContextStorage.getStore();
   const promptTokens = usage?.prompt_tokens ?? 0;
   const outputTokens = usage?.completion_tokens ?? 0;
@@ -32,7 +32,7 @@ async function logLlmUsage(
       },
     });
   } catch (err) {
-    if (process.env.NODE_ENV !== "test") {
+    if ((process.env.NODE_ENV as string) !== "test") {
       console.error("Failed to log LLM usage:", err);
     }
   }

@@ -7,17 +7,37 @@ export interface SendEmailOptions {
   subject: string;
   html: string;
   text?: string;
+  replyTo?: string;
+}
+
+function htmlToPlainText(html: string): string {
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<a\s+[^>]*href=["']([^"']*)["'][^>]*>(.*?)<\/a>/gi, "$2 ($1)")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<br\s*[\/]?>/gi, "\n")
+    .replace(/<\/div>/gi, "\n")
+    .replace(/<[^>]+>/gi, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\n\s+\n/g, "\n\n")
+    .trim();
 }
 
 /**
  * Sends an email using the Resend REST API via native fetch.
  * If RESEND_API_KEY is not configured, logs to console in development.
  */
-export async function sendEmail({ to, subject, html, text }: SendEmailOptions): Promise<{ success: boolean; id?: string; error?: string }> {
+export async function sendEmail({ to, subject, html, text, replyTo }: SendEmailOptions): Promise<{ success: boolean; id?: string; error?: string }> {
   if (!env.resendApiKey) {
     console.warn(`[Resend Mock] Email to ${to} not sent (RESEND_API_KEY not configured). Subject: "${subject}"`);
     return { success: true, id: "mock-id" };
   }
+
+  const plainText = text || htmlToPlainText(html);
 
   try {
     const res = await fetch("https://api.resend.com/emails", {
@@ -29,9 +49,10 @@ export async function sendEmail({ to, subject, html, text }: SendEmailOptions): 
       body: JSON.stringify({
         from: env.resendFromEmail,
         to: [to],
+        reply_to: replyTo || "siwescompanion@akanbi.dev",
         subject,
         html,
-        text,
+        text: plainText,
       }),
     });
 
