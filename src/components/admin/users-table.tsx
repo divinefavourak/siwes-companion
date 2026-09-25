@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Route } from "next";
-import { Search, UserCheck, UserX } from "lucide-react";
+import { Search, UserCheck, UserX, Mail } from "lucide-react";
 import { AdminDataTable, type Column } from "@/src/components/admin/admin-data-table";
 import { AdminBadge } from "@/src/components/admin/admin-badge";
 import { AdminConfirmDialog } from "@/src/components/admin/admin-confirm-dialog";
+import { AdminBroadcastModal } from "@/src/components/admin/admin-broadcast-modal";
 
 interface AdminUser {
   id: string;
@@ -42,6 +43,8 @@ export function UsersTable() {
     type: "soft-delete" | "restore" | "toggle-role";
     user: AdminUser;
   } | null>(null);
+  const [broadcastOpen, setBroadcastOpen] = useState(false);
+  const [broadcastTargetEmail, setBroadcastTargetEmail] = useState<string | undefined>();
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -179,6 +182,17 @@ export function UsersTable() {
           )}
           <button
             type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setBroadcastTargetEmail(u.email || undefined);
+              setBroadcastOpen(true);
+            }}
+            className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+          >
+            Email
+          </button>
+          <button
+            type="button"
             onClick={(e) => { e.stopPropagation(); setConfirmAction({ type: "toggle-role", user: u }); }}
             className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
           >
@@ -191,8 +205,8 @@ export function UsersTable() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3">
+      {/* Filters & Actions */}
+      <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400 pointer-events-none" />
           <input
@@ -223,6 +237,15 @@ export function UsersTable() {
           <option value="deleted">Deleted Users</option>
           <option value="">All Users</option>
         </select>
+
+        <button
+          type="button"
+          onClick={() => { setBroadcastTargetEmail(undefined); setBroadcastOpen(true); }}
+          className="flex items-center gap-1.5 rounded-xl bg-brand px-3.5 py-2.5 text-sm font-semibold text-white hover:bg-brand-strong transition shadow-sm"
+        >
+          <Mail className="size-4" />
+          <span>Broadcast Email</span>
+        </button>
       </div>
 
       {/* Results count */}
@@ -278,6 +301,14 @@ export function UsersTable() {
           danger={confirmAction.type === "soft-delete" || confirmAction.type === "toggle-role"}
           onConfirm={() => handleAction(confirmAction)}
           onCancel={() => setConfirmAction(null)}
+        />
+      )}
+
+      {broadcastOpen && (
+        <AdminBroadcastModal
+          isOpen={broadcastOpen}
+          onClose={() => setBroadcastOpen(false)}
+          defaultEmail={broadcastTargetEmail}
         />
       )}
     </div>
