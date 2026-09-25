@@ -2,7 +2,7 @@ import { prisma } from "@/src/lib/prisma";
 
 async function main() {
   const result = await prisma.siwesProgramme.deleteMany({
-    where: { title: "Chaos Engineering Intern" }
+    where: { id: "seed_unhinged_programme_1" }
   });
   console.log(`Deleted ${result.count} seeded programmes and their entries.`);
   await prisma.$disconnect();

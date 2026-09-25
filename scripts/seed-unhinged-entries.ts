@@ -16,8 +16,13 @@ async function main() {
   const admin = await prisma.user.findFirst({ where: { role: "ADMIN" } });
   if (!admin) throw new Error("No admin user found to attach programme to.");
 
-  const programme = await prisma.siwesProgramme.create({
-    data: {
+  const programme = await prisma.siwesProgramme.upsert({
+    where: {
+      id: "seed_unhinged_programme_1" // Give it a fixed ID or find by attributes
+    },
+    update: {},
+    create: {
+      id: "seed_unhinged_programme_1",
       userId: admin.id,
       title: "Chaos Engineering Intern",
       durationMonths: 6,
@@ -35,11 +40,21 @@ async function main() {
   console.log(`Injecting entries into programme: ${programme.institution}`);
 
   for (let i = 0; i < unhingedLogs.length; i++) {
-    const d = new Date();
-    d.setDate(d.getDate() - i); // one for each of the last 9 days
+    // Anchor dates within the programme period (June 2026)
+    const d = new Date("2026-06-30");
+    d.setDate(d.getDate() - i); 
 
-    await prisma.entry.create({
-      data: {
+    await prisma.entry.upsert({
+      where: {
+        programmeId_workDate: {
+          programmeId: programme.id,
+          workDate: d,
+        }
+      },
+      update: {
+        rawText: unhingedLogs[i]
+      },
+      create: {
         programmeId: programme.id,
         workDate: d,
         rawText: unhingedLogs[i],

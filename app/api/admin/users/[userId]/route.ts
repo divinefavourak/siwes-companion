@@ -78,7 +78,7 @@ export async function GET(_req: Request, { params }: Params) {
 
 export async function PATCH(request: Request, { params }: Params) {
   try {
-    await requireAdmin();
+    const admin = await requireAdmin();
     const { userId } = await params;
     const body = await request.json();
 
@@ -95,6 +95,16 @@ export async function PATCH(request: Request, { params }: Params) {
       select: { id: true, name: true, email: true, role: true, deletedAt: true },
     });
 
+    await prisma.auditEvent.create({
+      data: {
+        userId: admin.userId,
+        action: "UPDATE",
+        entityType: "User",
+        entityId: user.id,
+        metadata: allowedFields,
+      }
+    });
+
     return NextResponse.json({ user });
   } catch (err) {
     return jsonError(err);
@@ -103,7 +113,7 @@ export async function PATCH(request: Request, { params }: Params) {
 
 export async function DELETE(request: Request, { params }: Params) {
   try {
-    await requireAdmin();
+    const admin = await requireAdmin();
     const { userId } = await params;
     const url = new URL(request.url);
     const hard = url.searchParams.get("hard") === "true";
@@ -111,6 +121,15 @@ export async function DELETE(request: Request, { params }: Params) {
     if (hard) {
       // Hard delete — cascades all related data via Prisma relations
       await prisma.user.delete({ where: { id: userId } });
+      await prisma.auditEvent.create({
+        data: {
+          userId: admin.userId,
+          action: "HARD_DELETE",
+          entityType: "User",
+          entityId: userId,
+          metadata: {},
+        }
+      });
       return NextResponse.json({ deleted: true, hard: true });
     }
 
@@ -119,6 +138,16 @@ export async function DELETE(request: Request, { params }: Params) {
       where: { id: userId },
       data: { deletedAt: new Date() },
       select: { id: true, deletedAt: true },
+    });
+
+    await prisma.auditEvent.create({
+      data: {
+        userId: admin.userId,
+        action: "SOFT_DELETE",
+        entityType: "User",
+        entityId: user.id,
+        metadata: {},
+      }
     });
 
     return NextResponse.json({ user, hard: false });

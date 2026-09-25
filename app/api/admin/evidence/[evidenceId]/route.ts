@@ -9,7 +9,7 @@ interface Params {
 
 export async function PATCH(request: Request, { params }: Params) {
   try {
-    await requireAdmin();
+    const admin = await requireAdmin();
     const { evidenceId } = await params;
     const body = await request.json();
 
@@ -22,6 +22,17 @@ export async function PATCH(request: Request, { params }: Params) {
       data: allowedFields,
     });
 
+    await prisma.auditEvent.create({
+      data: {
+        userId: admin.userId,
+        programmeId: evidence.programmeId,
+        action: "UPDATE",
+        entityType: "Evidence",
+        entityId: evidence.id,
+        metadata: allowedFields,
+      }
+    });
+
     return NextResponse.json({ evidence });
   } catch (err) {
     return jsonError(err);
@@ -30,13 +41,26 @@ export async function PATCH(request: Request, { params }: Params) {
 
 export async function DELETE(request: Request, { params }: Params) {
   try {
-    await requireAdmin();
+    const admin = await requireAdmin();
     const { evidenceId } = await params;
+    
     // Soft delete is preferred for evidence moderation (mark DELETED so a background job can sweep object storage)
     const evidence = await prisma.evidence.update({
       where: { id: evidenceId },
       data: { status: "DELETED" },
     });
+
+    await prisma.auditEvent.create({
+      data: {
+        userId: admin.userId,
+        programmeId: evidence.programmeId,
+        action: "SOFT_DELETE",
+        entityType: "Evidence",
+        entityId: evidence.id,
+        metadata: {},
+      }
+    });
+
     return NextResponse.json({ evidence, deleted: true, soft: true });
   } catch (err) {
     return jsonError(err);
