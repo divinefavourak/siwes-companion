@@ -78,6 +78,16 @@ export function AdminShell({
           </div>
         </Link>
 
+        <div className="mt-4 px-2">
+          <Link
+            href={"/dashboard" as Route}
+            className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-brand transition"
+          >
+            <LayoutDashboard className="size-3.5 text-slate-500" />
+            <span>Switch to Student View</span>
+          </Link>
+        </div>
+
         {/* Navigation */}
         <div className="mt-10 px-1">
           <p className="px-3 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
@@ -157,8 +167,17 @@ export function AdminShell({
           {/* Desktop page title placeholder — filled by each page via its own heading */}
           <div className="hidden lg:block" />
 
-          {/* Admin user chip */}
+          {/* Admin user chip & Student View switcher */}
           <div className="ml-auto flex items-center gap-3">
+            <Link
+              href={"/dashboard" as Route}
+              className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-brand hover:text-brand transition shadow-xs"
+              title="Switch to Student Studio"
+            >
+              <LayoutDashboard className="size-3.5 text-slate-500" />
+              <span className="hidden sm:inline">Student View</span>
+            </Link>
+
             <div className="hidden sm:flex flex-col items-end">
               <span className="text-xs font-semibold text-slate-900 leading-tight">
                 {adminName}
@@ -230,6 +249,17 @@ export function AdminShell({
                       </Link>
                     );
                   })}
+
+                  <div className="pt-2">
+                    <Link
+                      href={"/dashboard" as Route}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center gap-3 rounded-xl bg-slate-50 border border-slate-200/80 px-3 py-3 text-sm font-semibold text-slate-700 min-h-[44px]"
+                    >
+                      <LayoutDashboard className="size-4 text-slate-500" />
+                      <span>Switch to Student View</span>
+                    </Link>
+                  </div>
                 </nav>
 
                 <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
