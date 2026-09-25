@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
+import { NotificationBell } from "@/src/components/notifications/notification-bell";
 
 interface NavLinkItem {
   href: Route;
@@ -177,6 +178,8 @@ export function AdminShell({
               <LayoutDashboard className="size-3.5 text-slate-500" />
               <span className="hidden sm:inline">Student View</span>
             </Link>
+
+            <NotificationBell />
 
             <div className="hidden sm:flex flex-col items-end">
               <span className="text-xs font-semibold text-slate-900 leading-tight">

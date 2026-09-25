@@ -22,6 +22,7 @@ import {
   X
 } from "lucide-react";
 import { signOut } from "next-auth/react";
+import { NotificationBell } from "@/src/components/notifications/notification-bell";
 
 interface NavLinkItem {
   href: Route;
@@ -195,6 +196,7 @@ export function DashboardShell({
               </span>
               <span className="text-[11px] text-slate-400">Student Record</span>
             </div>
+            <NotificationBell />
             <Link
               href="/settings"
               aria-label="Settings"

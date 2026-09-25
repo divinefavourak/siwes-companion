@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, Copy, ExternalLink, RefreshCw, Send, ShieldCheck, Unlink } from "lucide-react";
+import { ArrowLeft, Bell, Check, Copy, ExternalLink, Mail, RefreshCw, Send, ShieldCheck, Sparkles, Unlink } from "lucide-react";
 import type { Programme } from "@/src/core/siwes/types";
 
 const WEEKDAYS = [
@@ -40,9 +40,21 @@ export default function SettingsPage() {
   const [copied, setCopied] = useState(false);
   const [telegramStatusLoading, setTelegramStatusLoading] = useState(true);
 
+  // Notification Preferences State
+  const [dailyReminderTelegram, setDailyReminderTelegram] = useState(true);
+  const [dailyReminderEmail, setDailyReminderEmail] = useState(false);
+  const [weeklyRollupEmail, setWeeklyRollupEmail] = useState(true);
+  const [reminderHour, setReminderHour] = useState(17);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [savingNotif, setSavingNotif] = useState(false);
+  const [notifMessage, setNotifMessage] = useState<string | null>(null);
+  const [testingNotif, setTestingNotif] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
+
   useEffect(() => {
     fetchProgramme();
     fetchTelegramStatus();
+    fetchNotificationPreferences();
   }, []);
 
   async function fetchProgramme() {
@@ -76,6 +88,73 @@ export default function SettingsPage() {
       // Ignored in offline demo
     } finally {
       setTelegramStatusLoading(false);
+    }
+  }
+
+  async function fetchNotificationPreferences() {
+    try {
+      const response = await fetch("/api/settings/notifications");
+      if (response.ok) {
+        const data = await response.json();
+        if (data.preference) {
+          setDailyReminderTelegram(Boolean(data.preference.dailyReminderTelegram));
+          setDailyReminderEmail(Boolean(data.preference.dailyReminderEmail));
+          setWeeklyRollupEmail(Boolean(data.preference.weeklyRollupEmail));
+          setReminderHour(data.preference.reminderHour ?? 17);
+        }
+        if (data.email) setUserEmail(data.email);
+      }
+    } catch {
+      // Ignored
+    }
+  }
+
+  async function saveNotificationPreferences(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingNotif(true);
+    setNotifMessage(null);
+    try {
+      const response = await fetch("/api/settings/notifications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dailyReminderTelegram,
+          dailyReminderEmail,
+          weeklyRollupEmail,
+          reminderHour,
+        }),
+      });
+      if (response.ok) {
+        setNotifMessage("Notification preferences saved successfully.");
+      } else {
+        setNotifMessage("Failed to save notification preferences.");
+      }
+    } catch {
+      setNotifMessage("Could not connect to save preferences.");
+    } finally {
+      setSavingNotif(false);
+    }
+  }
+
+  async function triggerTestNotification() {
+    setTestingNotif(true);
+    setTestResult(null);
+    try {
+      const response = await fetch("/api/settings/notifications", { method: "POST" });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.telegramSent) {
+          setTestResult("Test notification sent to In-App Bell and Telegram!");
+        } else {
+          setTestResult("Test notification sent to In-App Bell!");
+        }
+      } else {
+        setTestResult("Failed to send test notification.");
+      }
+    } catch {
+      setTestResult("Connection error sending test alert.");
+    } finally {
+      setTestingNotif(false);
     }
   }
 
@@ -290,6 +369,143 @@ export default function SettingsPage() {
               </button>
               {settingsMessage && (
                 <span className="text-xs font-medium text-emerald-600 animate-fade-in">{settingsMessage}</span>
+              )}
+            </div>
+          </form>
+        </section>
+
+        {/* Notification Preferences */}
+        <section className="rounded-[28px] border border-slate-200 bg-white p-7 shadow-sm">
+          <div className="flex items-start justify-between border-b border-slate-100 pb-5">
+            <div className="flex items-center gap-3">
+              <div className="grid size-11 place-items-center rounded-2xl bg-sky-50 text-brand">
+                <Bell className="size-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-ink">Notification & Reminder Preferences</h2>
+                <p className="text-xs text-muted">Control daily logging nudges and weekly summary digests</p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={triggerTestNotification}
+              disabled={testingNotif}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-brand hover:text-brand transition disabled:opacity-50"
+            >
+              {testingNotif ? (
+                <>
+                  <RefreshCw className="size-3.5 animate-spin" /> Sending Test...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="size-3.5 text-brand" /> Send Test Alert
+                </>
+              )}
+            </button>
+          </div>
+
+          {testResult && (
+            <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 text-xs font-semibold text-emerald-800 animate-fade-in flex items-center justify-between">
+              <span>{testResult}</span>
+              <button type="button" onClick={() => setTestResult(null)} className="text-emerald-600 hover:underline">Dismiss</button>
+            </div>
+          )}
+
+          <form onSubmit={saveNotificationPreferences} className="mt-6 space-y-6">
+            <div className="space-y-4">
+              {/* Telegram Daily Nudge Toggle */}
+              <label className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/50 p-4 transition hover:bg-slate-50 cursor-pointer">
+                <div className="flex items-center gap-3 pr-4">
+                  <div className="grid size-9 place-items-center rounded-xl bg-sky-100/60 text-brand">
+                    <Send className="size-4" />
+                  </div>
+                  <div>
+                    <span className="text-sm font-semibold text-ink">Telegram Daily Reminders</span>
+                    <p className="text-xs text-muted">
+                      Receive an interactive 5:00 PM nudge with 1-tap logging buttons if today has not been recorded.
+                    </p>
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={dailyReminderTelegram}
+                  onChange={(e) => setDailyReminderTelegram(e.target.checked)}
+                  className="size-5 rounded border-slate-300 text-brand focus:ring-brand accent-brand cursor-pointer"
+                />
+              </label>
+
+              {/* Email Weekly Rollup Toggle */}
+              <label className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/50 p-4 transition hover:bg-slate-50 cursor-pointer">
+                <div className="flex items-center gap-3 pr-4">
+                  <div className="grid size-9 place-items-center rounded-xl bg-emerald-100/60 text-emerald-700">
+                    <Mail className="size-4" />
+                  </div>
+                  <div>
+                    <span className="text-sm font-semibold text-ink">Email Weekly Rollup & Reminders</span>
+                    <p className="text-xs text-muted">
+                      Receive Friday progress digests and notifications for pending supervisor approvals {userEmail ? `(${userEmail})` : ""}.
+                    </p>
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={weeklyRollupEmail}
+                  onChange={(e) => setWeeklyRollupEmail(e.target.checked)}
+                  className="size-5 rounded border-slate-300 text-brand focus:ring-brand accent-brand cursor-pointer"
+                />
+              </label>
+
+              {/* Email Daily Nudge Toggle */}
+              <label className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/50 p-4 transition hover:bg-slate-50 cursor-pointer">
+                <div className="flex items-center gap-3 pr-4">
+                  <div className="grid size-9 place-items-center rounded-xl bg-slate-200/60 text-slate-700">
+                    <Mail className="size-4" />
+                  </div>
+                  <div>
+                    <span className="text-sm font-semibold text-ink">Email Daily Logging Nudge</span>
+                    <p className="text-xs text-muted">
+                      Also send an end-of-day email reminder to {userEmail || "your email"} on unlogged working days.
+                    </p>
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={dailyReminderEmail}
+                  onChange={(e) => setDailyReminderEmail(e.target.checked)}
+                  className="size-5 rounded border-slate-300 text-brand focus:ring-brand accent-brand cursor-pointer"
+                />
+              </label>
+            </div>
+
+            {/* Reminder Time Selector */}
+            <div>
+              <label htmlFor="reminder-hour-select" className="text-xs font-semibold uppercase tracking-wider text-slate-500">Daily Reminder Time</label>
+              <p className="text-xs text-slate-400 mb-2">Time of day when unlogged work reminders are dispatched (WAT, West Africa Time).</p>
+              <select
+                id="reminder-hour-select"
+                aria-label="Reminder Hour"
+                value={reminderHour}
+                onChange={(e) => setReminderHour(Number(e.target.value))}
+                className="w-full sm:w-72 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-brand focus:bg-white"
+              >
+                <option value={16}>4:00 PM WAT (Early Shift)</option>
+                <option value={17}>5:00 PM WAT (Standard End of Workday)</option>
+                <option value={18}>6:00 PM WAT (Evening)</option>
+                <option value={20}>8:00 PM WAT (Night Review)</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="submit"
+                disabled={savingNotif}
+                className="rounded-2xl bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-strong disabled:opacity-50"
+              >
+                {savingNotif ? "Saving..." : "Save Notification Preferences"}
+              </button>
+              {notifMessage && (
+                <span className="text-xs font-medium text-emerald-600 animate-fade-in">{notifMessage}</span>
               )}
             </div>
           </form>

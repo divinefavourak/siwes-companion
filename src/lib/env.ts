@@ -12,7 +12,8 @@ export const env = {
   googleClientSecret: optionalString.parse(process.env.AUTH_GOOGLE_SECRET),
   resendApiKey: optionalString.parse(process.env.RESEND_API_KEY),
   resendFromEmail: process.env.RESEND_FROM_EMAIL || "SIWES Companion <siwescompanion@akanbi.dev>",
-  appUrl: process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "https://swcompanion.akanbi.dev"
+  appUrl: process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "https://swcompanion.akanbi.dev",
+  cronSecret: optionalString.parse(process.env.CRON_SECRET)
 };
 
 export function hasGoogleAuth(): boolean {

@@ -91,6 +91,14 @@ enum DefenseStatus {
   ABANDONED
 }
 
+enum NotificationType {
+  INFO
+  REMINDER
+  ALERT
+  ACTION_REQUIRED
+  SUCCESS
+}
+
 enum JobType {
   GENERATE_ENTRY
   GENERATE_WEEKLY_SUMMARY
@@ -129,6 +137,8 @@ model User {
   botState         BotConversationState?
   auditEvents      AuditEvent[]
   llmUsages        LlmUsage[]
+  notifications    Notification[]
+  notificationPreference NotificationPreference?
 }
 
 model Account {
@@ -566,3 +576,34 @@ model LlmUsage {
   @@index([userId, createdAt])
   @@index([programmeId, purpose])
 }
+
+model Notification {
+  id          String           @id @default(cuid())
+  userId      String
+  title       String
+  message     String
+  type        NotificationType @default(INFO)
+  link        String?
+  read        Boolean          @default(false)
+  readAt      DateTime?
+  metadata    Json?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read, createdAt])
+  @@index([userId, createdAt])
+}
+
+model NotificationPreference {
+  id                     String   @id @default(cuid())
+  userId                 String   @unique
+  dailyReminderTelegram  Boolean  @default(true)
+  dailyReminderEmail     Boolean  @default(false)
+  weeklyRollupEmail      Boolean  @default(true)
+  reminderHour           Int      @default(17)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
