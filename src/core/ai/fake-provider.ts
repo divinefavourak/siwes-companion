@@ -2,7 +2,7 @@ import type { JsonLlmProvider } from "@/src/core/ai/daily-entry-generator";
 
 export const fakeDailyEntryProvider: JsonLlmProvider = {
   async generateJson({ user }: { purpose: "daily_entry"; system: string; user: string; maxOutputTokens: number; timeoutMs: number }) {
-    const match = user.match(/<student_note>([\s\S]*)<\/student_note>/);
+    const match = user.match(/<note>([\s\S]*)<\/note>/);
     const rawText = match?.[1]?.trim() ?? "";
     return {
       formalEntry: rawText,

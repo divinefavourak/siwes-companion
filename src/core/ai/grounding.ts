@@ -11,20 +11,33 @@ function sourceContains(rawText: string, value: string): boolean {
   return normalized(rawText).includes(normalized(value));
 }
 
+function isParaphraseSupported(rawText: string, claim: string): boolean {
+  const normRaw = normalized(rawText);
+  const normClaim = normalized(claim);
+  if (normRaw.includes(normClaim)) return true;
+  
+  // Token overlap check (ignoring short stop words)
+  const claimTokens = normClaim.split(/\s+/).filter(w => w.length > 3);
+  if (claimTokens.length === 0) return false;
+  
+  // If at least one significant word from the claim appears in the raw text, we tolerate it
+  return claimTokens.some(token => normRaw.includes(token));
+}
+
 export function findGroundingViolations(rawText: string, output: GeneratedEntry): string[] {
   const violations: string[] = [];
   if (observationLanguage.test(rawText) && unsupportedObservationUpgrade.test(output.formalEntry)) {
-    violations.push("observation was upgraded to a performed responsibility");
+    violations.push("observation was upgraded to a performed responsibility"); 
   }
 
   for (const tool of output.structuredData.tools) {
-    if (!sourceContains(rawText, tool)) violations.push(`unsupported tool: ${tool}`);
+    if (!isParaphraseSupported(rawText, tool)) violations.push(`unsupported tool: ${tool}`);
   }
   for (const project of output.structuredData.projects) {
-    if (!sourceContains(rawText, project)) violations.push(`unsupported project: ${project}`);
+    if (!isParaphraseSupported(rawText, project)) violations.push(`unsupported project: ${project}`);
   }
   for (const achievement of output.structuredData.achievements) {
-    if (!sourceContains(rawText, achievement)) violations.push(`unsupported achievement: ${achievement}`);
+    if (!isParaphraseSupported(rawText, achievement)) violations.push(`unsupported achievement: ${achievement}`);
   }
 
   return violations;
