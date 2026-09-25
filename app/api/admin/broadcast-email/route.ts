@@ -76,9 +76,10 @@ export async function POST(request: Request) {
 
     let sentCount = 0;
     let failedCount = 0;
+    let lastErrorMessage = "";
 
-    // Send emails in batches of 5 to avoid connection flooding
-    const BATCH_SIZE = 5;
+    // Send emails in small throttled batches (2 per batch + 600ms delay) to strictly respect Resend's free tier rate limit (2-5 req/s)
+    const BATCH_SIZE = 2;
     for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
       const batch = recipients.slice(i, i + BATCH_SIZE);
       await Promise.all(
@@ -114,6 +115,9 @@ export async function POST(request: Request) {
               sentCount++;
             } else {
               failedCount++;
+              if (result.error) {
+                lastErrorMessage = String(result.error);
+              }
             }
           } catch (e) {
             console.error(`Error sending email to ${recipient.email}:`, e);
@@ -121,6 +125,11 @@ export async function POST(request: Request) {
           }
         })
       );
+
+      // Throttling delay between batches
+      if (i + BATCH_SIZE < recipients.length) {
+        await new Promise((resolve) => setTimeout(resolve, 600));
+      }
     }
 
     // Record audit event
@@ -141,11 +150,18 @@ export async function POST(request: Request) {
       },
     });
 
+    let domainNotice: string | null = null;
+    if (lastErrorMessage.includes("verify a domain")) {
+      domainNotice = "Resend Sandbox Restriction: Resend only delivers to your personal account email until you verify your domain at resend.com/domains.";
+    }
+
     return NextResponse.json({
-      ok: true,
+      ok: sentCount > 0,
       totalRecipients: recipients.length,
       sentCount,
       failedCount,
+      warning: domainNotice,
+      error: sentCount === 0 ? (domainNotice || lastErrorMessage || "Failed to dispatch emails") : undefined,
     });
   } catch (err) {
     return jsonError(err);

@@ -117,6 +117,16 @@ export function AdminBroadcastModal({ isOpen, onClose, defaultTarget = "ALL", de
           </div>
         )}
 
+        {/* Resend Sandbox Guidance Banner */}
+        <div className="mt-4 rounded-xl bg-amber-50/80 border border-amber-200 p-3 text-xs text-amber-900 leading-relaxed">
+          <p className="font-semibold flex items-center gap-1.5">
+            <span>💡</span> Resend Domain Verification Required for Real Students
+          </p>
+          <p className="mt-0.5 text-[11px] text-amber-800">
+            On the free testing tier without a verified domain, Resend strictly allows sending to your account email (<code>divinefavourakanbi07@gmail.com</code>). To broadcast to other students, add & verify a domain at <a href="https://resend.com/domains" target="_blank" rel="noreferrer" className="underline font-bold hover:text-amber-950">resend.com/domains</a> and set <code>RESEND_FROM_EMAIL</code>.
+          </p>
+        </div>
+
         <div className="mt-5 space-y-4 text-sm">
           
           {/* Target Audience */}
