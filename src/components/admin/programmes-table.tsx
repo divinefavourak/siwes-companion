@@ -13,6 +13,8 @@ interface AdminProgramme {
   user: { id: string; name: string | null; email: string | null };
   institution: string;
   department: string;
+  organization: string;
+  unit: string;
   durationMonths: number;
   status: "ACTIVE" | "COMPLETED" | "ARCHIVED";
   startDate: string;
@@ -73,6 +75,16 @@ export function ProgrammesTable() {
         <div>
           <p className="font-semibold text-slate-900">{p.user.name ?? "—"}</p>
           <p className="text-xs text-slate-400">{p.user.email ?? "—"}</p>
+        </div>
+      ),
+    },
+    {
+      key: "organization",
+      header: "Place of Work (Org)",
+      render: (p) => (
+        <div>
+          <p className="font-semibold text-slate-900">{p.organization}</p>
+          <p className="text-xs text-slate-400">{p.unit}</p>
         </div>
       ),
     },

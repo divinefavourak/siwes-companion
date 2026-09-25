@@ -29,7 +29,7 @@ export async function PATCH(request: Request, { params }: Params) {
         action: "UPDATE",
         entityType: "Evidence",
         entityId: evidence.id,
-        metadata: allowedFields,
+        metadata: allowedFields as any,
       }
     });
 

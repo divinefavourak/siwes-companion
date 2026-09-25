@@ -19,6 +19,7 @@ export async function GET(request: Request) {
             OR: [
               { institution: { contains: q, mode: "insensitive" as const } },
               { department: { contains: q, mode: "insensitive" as const } },
+              { organization: { contains: q, mode: "insensitive" as const } },
               { user: { name: { contains: q, mode: "insensitive" as const } } },
               { user: { email: { contains: q, mode: "insensitive" as const } } },
             ],

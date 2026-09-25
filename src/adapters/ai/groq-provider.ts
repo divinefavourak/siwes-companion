@@ -1,7 +1,42 @@
 import https from "node:https";
 import { env } from "@/src/lib/env";
 import { aiConfig } from "@/src/adapters/ai/config";
+import { llmContextStorage } from "@/src/lib/llm-context";
+import { prisma } from "@/src/lib/prisma";
 import type { JsonLlmProvider } from "@/src/core/ai/daily-entry-generator";
+
+async function logLlmUsage(
+  provider: string,
+  model: string,
+  usage?: { prompt_tokens?: number; completion_tokens?: number }
+) {
+  if (!process.env.DATABASE_URL) return;
+  const context = llmContextStorage.getStore();
+  const promptTokens = usage?.prompt_tokens ?? 0;
+  const outputTokens = usage?.completion_tokens ?? 0;
+  // Llama-3.3-70b: $0.59 per 1M prompt tokens, $0.79 per 1M completion tokens
+  const cost = (promptTokens * 0.00000059) + (outputTokens * 0.00000079);
+
+  try {
+    await prisma.llmUsage.create({
+      data: {
+        userId: context?.userId ?? null,
+        programmeId: context?.programmeId ?? null,
+        entryId: context?.entryId ?? null,
+        provider,
+        model,
+        purpose: context?.purpose ?? "daily-entry-generation",
+        promptTokens,
+        outputTokens,
+        estimatedCost: cost,
+      },
+    });
+  } catch (err) {
+    if (process.env.NODE_ENV !== "test") {
+      console.error("Failed to log LLM usage:", err);
+    }
+  }
+}
 
 export interface GroqJsonProviderOptions {
   apiKey?: string;
@@ -109,11 +144,13 @@ export class GroqJsonProvider implements JsonLlmProvider {
 
         const json = (await res.json()) as {
           choices?: Array<{ message?: { content?: string } }>;
+          usage?: { prompt_tokens?: number; completion_tokens?: number };
         };
         const content = json.choices?.[0]?.message?.content?.trim();
         if (!content) {
           throw new Error("Groq API returned an empty completion");
         }
+        await logLlmUsage("groq", this.model, json.usage);
         return JSON.parse(content) as unknown;
       } catch (err: unknown) {
         if (err instanceof Error && err.name === "AbortError") {
@@ -155,6 +192,7 @@ export class GroqJsonProvider implements JsonLlmProvider {
 
     const json = JSON.parse(response.body) as {
       choices?: Array<{ message?: { content?: string } }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
     };
 
     const content = json.choices?.[0]?.message?.content?.trim();
@@ -162,6 +200,7 @@ export class GroqJsonProvider implements JsonLlmProvider {
       throw new Error("Groq API returned an empty completion");
     }
 
+    await logLlmUsage("groq", this.model, json.usage);
     return JSON.parse(content) as unknown;
   }
 }

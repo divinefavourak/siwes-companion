@@ -38,6 +38,8 @@ export default async function AdminUserDetailPage({ params }: Params) {
           title: true,
           institution: true,
           department: true,
+          organization: true,
+          unit: true,
           durationMonths: true,
           status: true,
           startDate: true,
@@ -147,7 +149,7 @@ export default async function AdminUserDetailPage({ params }: Params) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/60">
-                {["Institution", "Department", "Status", "Entries", "Evidence", "Start → End"].map((h) => (
+                {["Organization (Workplace)", "Institution", "Department", "Status", "Entries", "Evidence", "Start → End"].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">
                     {h}
                   </th>
@@ -160,12 +162,13 @@ export default async function AdminUserDetailPage({ params }: Params) {
                   <td className="px-4 py-3">
                     <Link
                       href={`/admin/programmes/${p.id}` as Route}
-                      className="font-medium text-slate-900 hover:text-brand hover:underline"
+                      className="font-semibold text-slate-900 hover:text-brand hover:underline"
                     >
-                      {p.institution}
+                      {p.organization}
                     </Link>
-                    <p className="text-xs text-slate-400">{p.title ?? `${p.department} IT`}</p>
+                    <p className="text-xs text-slate-400">{p.unit}</p>
                   </td>
+                  <td className="px-4 py-3 font-medium text-slate-700">{p.institution}</td>
                   <td className="px-4 py-3 text-slate-600">{p.department}</td>
                   <td className="px-4 py-3"><AdminBadge value={p.status} /></td>
                   <td className="px-4 py-3 font-mono text-slate-600">{p._count.entries}</td>

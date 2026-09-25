@@ -9,9 +9,16 @@ export const env = {
   anthropicApiKey: optionalString.parse(process.env.ANTHROPIC_API_KEY),
   telegramBotToken: optionalString.parse(process.env.TELEGRAM_BOT_TOKEN),
   googleClientId: optionalString.parse(process.env.AUTH_GOOGLE_ID),
-  googleClientSecret: optionalString.parse(process.env.AUTH_GOOGLE_SECRET)
+  googleClientSecret: optionalString.parse(process.env.AUTH_GOOGLE_SECRET),
+  resendApiKey: optionalString.parse(process.env.RESEND_API_KEY),
+  resendFromEmail: process.env.RESEND_FROM_EMAIL || "SIWES Companion <onboarding@resend.dev>",
+  appUrl: process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "https://swcompanion.akanbi.dev"
 };
 
 export function hasGoogleAuth(): boolean {
   return Boolean(env.googleClientId && env.googleClientSecret);
+}
+
+export function hasResend(): boolean {
+  return Boolean(env.resendApiKey);
 }

@@ -25,6 +25,8 @@ export async function GET(_req: Request, { params }: Params) {
             title: true,
             institution: true,
             department: true,
+            organization: true,
+            unit: true,
             durationMonths: true,
             status: true,
             startDate: true,
@@ -101,7 +103,7 @@ export async function PATCH(request: Request, { params }: Params) {
         action: "UPDATE",
         entityType: "User",
         entityId: user.id,
-        metadata: allowedFields,
+        metadata: allowedFields as any,
       }
     });
 

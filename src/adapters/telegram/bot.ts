@@ -9,6 +9,7 @@ import { createProgramme } from "@/src/core/siwes/siwes-service";
 import { consumeTelegramLinkToken } from "@/src/core/telegram/link-service";
 import { escapeTelegramHtml, chunkTelegramText } from "@/src/adapters/telegram/format";
 import type { PrismaTelegramRepository } from "@/src/adapters/telegram/prisma-telegram-repository";
+import { llmContextStorage } from "@/src/lib/llm-context";
 
 export const BOT_COMMANDS = [
   { command: "today", description: "View today's status & logbook entry" },
@@ -475,7 +476,10 @@ export function createTelegramBot(input: {
         await ctx.reply("🤖 <i>Formatting your logbook entry with AI...</i>", { parse_mode: "HTML" });
         await ctx.replyWithChatAction("typing");
 
-        const generated = await generateEntry(input.entries, input.generator, userId, entry.id);
+        const generated = await llmContextStorage.run(
+          { userId, entryId: entry.id, purpose: "telegram-entry-generation" },
+          () => generateEntry(input.entries, input.generator, userId, entry.id)
+        );
         await input.telegram.clearConversationState(userId);
 
         const keyboard = new InlineKeyboard()
@@ -763,7 +767,10 @@ export function createTelegramBot(input: {
       if (action === "regenerate") {
         await ctx.answerCallbackQuery({ text: "Regenerating..." });
         await ctx.replyWithChatAction("typing");
-        const regenerated = await generateEntry(input.entries, input.generator, userId, entryId);
+        const regenerated = await llmContextStorage.run(
+          { userId, entryId, purpose: "telegram-entry-regeneration" },
+          () => generateEntry(input.entries, input.generator, userId, entryId)
+        );
         const keyboard = new InlineKeyboard()
           .text("✅ Save Entry", `entry:save:${regenerated.id}:${regenerated.version}`)
           .text("✏️ Edit Text", `entry:edit:${regenerated.id}:${regenerated.version}`);

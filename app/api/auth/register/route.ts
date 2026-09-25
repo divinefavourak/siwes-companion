@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/src/lib/prisma";
 import { hashPassword } from "@/src/lib/auth-crypto";
+import { sendVerificationEmail } from "@/src/lib/email";
 
 const registerSchema = z.object({
   name: z.string().trim().min(2, "Name must be at least 2 characters"),
@@ -52,6 +53,11 @@ export async function POST(request: Request) {
         }
       });
     }
+
+    // Trigger verification email dispatch via Resend
+    sendVerificationEmail(email, name).catch((err) => {
+      console.error("Failed to send verification email:", err);
+    });
 
     return NextResponse.json({ ok: true });
   } catch (error) {
