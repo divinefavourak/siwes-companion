@@ -6,8 +6,44 @@ on:
       - main
 
 jobs:
+  # next.config.ts skips type and lint errors during `next build` to save RAM on the VPS,
+  # so these checks are the only gate before an image is published.
+  checks:
+    name: Typecheck, Lint and Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Generate and Validate Prisma Client
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+        run: |
+          npx prisma generate
+          npx prisma validate
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit Tests
+        run: npm test
+
   build:
     name: Build Docker Image on GitHub (7GB RAM Runner)
+    needs: checks
     runs-on: ubuntu-latest
     permissions:
       contents: read

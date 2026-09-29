@@ -1,3 +1,4 @@
+import type { JobStatus, JobType } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/src/lib/admin-auth";
 import { prisma } from "@/src/lib/prisma";
@@ -14,8 +15,8 @@ export async function GET(request: Request) {
     const skip = (page - 1) * limit;
 
     const where = {
-      ...(status ? { status: status as any } : {}),
-      ...(type ? { type: type as any } : {}),
+      ...(status ? { status: status as JobStatus } : {}),
+      ...(type ? { type: type as JobType } : {}),
     };
 
     const [jobs, total] = await Promise.all([
