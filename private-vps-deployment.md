@@ -47,6 +47,8 @@ AUTH_SECRET="generate_with_openssl_rand_base64_32"
 GROQ_API_KEY="gsk_..."
 TELEGRAM_BOT_TOKEN="your_telegram_bot_token"
 TELEGRAM_BOT_USERNAME="your_bot_username"
+# Required. Generate with: openssl rand -hex 32 (only A-Z, a-z, 0-9, _ and - are allowed)
+TELEGRAM_WEBHOOK_SECRET="your_webhook_secret"
 ```
 
 ---
@@ -97,28 +99,34 @@ curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/setMyCommands" \
   -H "Content-Type: application/json" \
   -d '{
     "commands": [
-      {"command": "today", "description": "View today status & logbook entry"},
-      {"command": "log", "description": "Capture daily work activity note"},
-      {"command": "week", "description": "Review this week entries & rollup"},
-      {"command": "skills", "description": "List acquired technical skills & tools"},
-      {"command": "defense", "description": "Practice mock oral defense questions"},
-      {"command": "settings", "description": "View programme schedule & Telegram link"},
-      {"command": "start", "description": "Onboard or restart conversation"},
-      {"command": "help", "description": "View available commands & guide"},
-      {"command": "cancel", "description": "Cancel active draft or flow"},
+      {"command": "log", "description": "Log the work you did today"},
+      {"command": "today", "description": "See the entry for today"},
+      {"command": "week", "description": "This week at a glance"},
+      {"command": "skills", "description": "Skills and tools so far"},
+      {"command": "defense", "description": "Practise panel questions"},
+      {"command": "web", "description": "Open your dashboard on the web"},
+      {"command": "email", "description": "Add your email"},
+      {"command": "password", "description": "Set a password for the web app"},
+      {"command": "settings", "description": "Programme and account"},
+      {"command": "start", "description": "Home"},
+      {"command": "help", "description": "All commands"},
+      {"command": "cancel", "description": "Stop what you are doing"},
       {"command": "unlink", "description": "Disconnect Telegram"}
     ]
   }'
 ```
 
-Set the webhook endpoint:
+Set the webhook endpoint with the same secret the app verifies. The app rejects webhook calls with 401 when the `X-Telegram-Bot-Api-Secret-Token` header does not match `TELEGRAM_WEBHOOK_SECRET`, and with 503 when the secret is unset:
 ```bash
+WEBHOOK_SECRET=$(grep -E '^TELEGRAM_WEBHOOK_SECRET=' .env | cut -d '=' -f2- | tr -d '"' | tr -d "'" | tr -d '\r')
+
 curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/setWebhook" \
   -H "Content-Type: application/json" \
-  -d '{
-    "url": "https://swcompanion.akanbi.dev/api/telegram/webhook",
-    "drop_pending_updates": true
-  }'
+  -d "{
+    \"url\": \"https://swcompanion.akanbi.dev/api/telegram/webhook\",
+    \"secret_token\": \"${WEBHOOK_SECRET}\",
+    \"drop_pending_updates\": true
+  }"
 ```
 
 ---

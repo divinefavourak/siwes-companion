@@ -20,19 +20,20 @@ grammY is the adapter. It receives webhook updates, authenticates the bot webhoo
 
 | Command | Behavior |
 | --- | --- |
-| `/start` | Link existing account from token or begin bot setup. |
-| `/help` | Show commands and privacy/AI grounding explanation. |
-| `/today` | Show today’s entry state and next action. |
-| `/log` | Start conversational capture for a chosen/default date. |
-| `/week` | Show saved/missing working days and weekly summary link. |
-| `/month` | Show month progress and summary link. |
-| `/skills` | List skills/tools/projects with a web link for filters. |
-| `/evidence` | Add a photo/document/link/note to today or a selected project. |
-| `/report` | Show report readiness and web editor link. |
-| `/defense` | Start/continue practice if unlocked. |
-| `/settings` | Timezone, reminders, working days, account link. |
-| `/unlink` | Confirm and unlink this Telegram identity. |
+| `/start` | Link an existing account from a token, otherwise show Home (or the welcome card for a new user). |
+| `/help` | Show commands and the grounding promise. |
+| `/today` | Show today’s entry card and next action. |
+| `/log` | Start capture for today. Free text also becomes today's note, but only while today is empty. |
+| `/week` | Saved/draft/missing status for the week's configured working days. |
+| `/skills` | Skills and tools extracted from logged entries. |
+| `/defense` | Practise panel questions (grounded in saved entries, plus general ones) with a STAR hint. |
+| `/web` | One-time sign-in link to the web dashboard (see Telegram to web). |
+| `/email` | Add and confirm an email for the account. |
+| `/password` | One-time sign-in link that opens the web password page. |
+| `/settings` | Placement, dates, working days, timezone, email, password and disconnect. |
+| `/unlink` | Confirm and unlink this Telegram identity (blocked if it would lock the student out). |
 | `/cancel` | Clear the current bot state without deleting saved data. |
+| `/month`, `/evidence`, `/report` | Planned; not implemented yet. |
 
 ## Conversation state machine
 
@@ -74,18 +75,24 @@ Student: Save
 Bot: Saved for Wednesday, 21 Sep. [View week] [Add evidence]
 ```
 
-## Inline keyboard layouts
+## Message style: live cards
+
+Each screen is a *card*: one message whose text and buttons are replaced in place as the flow moves on, rendered by the pure functions in `src/adapters/telegram/views.ts`.
+
+- A button press edits the card it lives on (`Drafting…` → `Draft` → `Saved ✓`), so chats don't fill with stacked replies.
+- A typed message always gets a new card below it; the prompt it answered collapses to a one-line summary such as `✓ Institution  Unilag`, and its buttons are removed.
+- Every card is a bold title, an optional `· status`, a body, and short plain-text buttons. Emoji are limited to status marks (✓ ○ •).
+- All student text is escaped in `views.ts`; card bodies are clipped below Telegram's 4096-character limit with a pointer to the web for the full text.
+- The typing indicator appears only while a draft is being generated.
 
 ```text
-Preview:       [Save] [Edit]
-                [Regenerate] [Discard]
-Today:         [Log today] [View entry]
-                [Week status] [Web app]
-Thin input:    [Answer question] [Save raw note]
-Defense:       [Start] [Continue] [End session]
+Draft card:    [Save] [Edit] [Redo]
+Saved card:    [Edit] [Redo draft] / [This week] [Home]
+No draft:      [Try again] [Write it myself] / [Home]
+Home:          [Log today] [Today] / [This week] [Skills] / [Practice] [Open web] / [Add email] [Settings]
 ```
 
-Buttons carry signed/opaque callback data such as `entry:save:<entryId>:<version>`. The handler rechecks ownership and current version; callback data is not authorization.
+Buttons carry opaque callback data such as `entry:save:<entryId>:<version>` or `nav:<screen>`. The handler rechecks ownership and current version; callback data is not authorization. The legacy `cmd:` prefix is still accepted for buttons in older messages.
 
 ## Linking flows
 
@@ -100,14 +107,19 @@ Buttons carry signed/opaque callback data such as `entry:save:<entryId>:<version
 
 ### Telegram to web
 
-1. `/start` without token offers a minimal bot setup wizard: name/email optional, institution, department, dates, organization and working days.
-2. The bot creates the same User and Programme through core services.
-3. It issues a one-time web handoff token and a short-lived authenticated link to finish profile setup.
-4. If email is unavailable, the Telegram identity remains the recovery factor until the student attaches Google/email on the web.
+1. **Set up here** starts a six-step wizard. Step 1 is email (skippable), then institution, course, matric number, placement and duration. A User is created only when the student taps Set up; stray messages from unknown users get the welcome card.
+2. Email is asked first so an existing web account is found before a duplicate programme is created:
+   - A new address gets a confirmation email. It is written to the user only after the link is confirmed, so nobody can claim someone else's address.
+   - An address that already has a web account gets a "Connect Telegram" email instead. Confirming it proves inbox ownership and folds the Telegram-only account into the web account (programmes, notifications and usage move over). If both accounts already have a programme the bot says so up front instead of sending a link.
+   - The confirmation page only reads the token; its button POSTs to consume it, so email link scanners cannot confirm on the student's behalf.
+3. **Open web** (`/web`) issues a one-time sign-in link: 32 random bytes, SHA-256 hash stored in `VerificationToken` (`tg-login:<userId>`), 10-minute expiry. It is consumed by the `telegram-link` Auth.js credentials provider when the `/auth/telegram` page calls `signIn`, not when the page loads, so link previews cannot spend it. Links may only land on an allow-listed page (`/dashboard`, `/settings/password`).
+4. **Set a web password** (`/password`) sends the same kind of link, landing on `/settings/password`, where a Telegram-created student can add a password and then sign in with email and password.
+5. Until an email is added, the Telegram identity is the only recovery factor. Admins can send every such student an "Add your email" card from the admin Telegram page, and Home keeps an **Add email** button until one is added.
 
 ### Unlink and loss
 
 - `/unlink` requires a confirmation button and removes the identity, not the user or entries.
+- Unlinking is refused (in the bot and on the web) for an account with no email, password or OAuth account, because the student would have no way back in.
 - A lost Telegram account is recovered through web auth; a new link token can replace the old identity.
 - One Telegram user ID can be linked to at most one app user. A token cannot be replayed.
 

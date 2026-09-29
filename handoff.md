@@ -70,7 +70,7 @@ It solves the widespread problem of fabricated or poorly recalled technical logb
 - **grammY Webhook Fix (`app/api/telegram/webhook/route.ts`)**:
   - Fixed grammY runtime error: `Bot not initialized! Either call await bot.init()`.
   - Implemented in-memory `cachedBotInfo` pattern: calls `await bot.init()` once on warm-up and reuses `botInfo` for instant, non-blocking webhook processing.
-  - Removed brittle secret token barrier while maintaining cryptographic deduplication (`telegramUpdate` table).
+  - Verifies the `X-Telegram-Bot-Api-Secret-Token` header against `TELEGRAM_WEBHOOK_SECRET` (constant-time compare) and deduplicates updates via the `telegramUpdate` table. Without the secret the route refuses updates, because the bot identifies users by the `from.id` in the request body.
 
 ### Milestone C: Authentication & Session Isolation
 - **Eliminated Google OAuth Lock-in**:
@@ -94,6 +94,15 @@ It solves the widespread problem of fabricated or poorly recalled technical logb
 - **GitHub Actions CI/CD (`.github/workflows/docker-build.yml`)**:
   - Automated cloud container compilation on GitHub's free 7GB RAM runners.
 
+### Milestone E: Security Fixes, Telegram Accounts & Live Cards
+- **Security**: webhook secret verification (above); sign-up can no longer attach a password to an existing email; the Groq TLS-verification fallback is development-only.
+- **Data safety**: re-capturing a date replaces only the raw note, never the saved edit or draft; free text in Telegram becomes today's note only while today is empty.
+- **Telegram accounts**: users are created only by explicit setup; email is onboarding step 1 (skippable) with emailed confirmation, and an address that already has a web account gets a "Connect Telegram" link that merges the accounts. Details in `docs/07-telegram-bot-design.md`.
+- **Web sign-in from Telegram**: `/web` and `/password` issue single-use 10-minute links consumed by the `telegram-link` credentials provider (`app/auth/telegram`). `/settings/password` sets or changes a web password.
+- **Live cards**: the bot edits one message per flow instead of stacking replies; screens are pure functions in `src/adapters/telegram/views.ts` with unit tests.
+- **Admin**: "Ask for emails" on the admin Telegram page messages every Telegram student without an email.
+- **CI**: a checks job (Prisma validate, typecheck, lint, unit tests) must pass before the Docker image is built.
+
 ---
 
 ## 4. Current Stage of Implementation
@@ -104,8 +113,9 @@ It solves the widespread problem of fabricated or poorly recalled technical logb
 | **Strict Multi-Tenant Session Isolation**| ✅ Production Ready | Per-browser session isolation; zero cross-account leakage |
 | **Log Out Flow** | ✅ Production Ready | Header & mobile drawer buttons calling `next-auth` signOut |
 | **Daily Logbook Capture (Web)** | ✅ Production Ready | Raw notes, AI generation, review, edit, and save |
-| **Daily Logbook Capture (Telegram)** | ✅ Production Ready | Webhook-driven, natural language notes, inline buttons |
-| **Telegram Slash Commands Menu** | ✅ Production Ready | Registered with Telegram API (`/start`, `/log`, `/today`, etc.) |
+| **Daily Logbook Capture (Telegram)** | ✅ Ready | Secret-verified webhook, live cards, natural-language notes |
+| **Telegram Email, Web Sign-in & Password** | ✅ Ready | Emailed confirmation/merge, one-tap `/web` link, `/settings/password` |
+| **Telegram Slash Commands Menu** | ✅ Ready | Re-register after deploy so `/web`, `/email` and `/password` appear |
 | **AI LLM Grounding Pipeline** | ✅ Production Ready | Groq (Llama-3.3-70b) primary, Anthropic secondary, Fake fallback |
 | **Database & Schema Migrations** | ✅ Production Ready | Automated `migrator` container on boot (`prisma migrate deploy`) |
 | **Docker & Low-RAM VPS Setup** | ✅ Production Ready | Single command deployment (`docker compose up -d`) |
@@ -137,7 +147,7 @@ ANTHROPIC_API_KEY=""
 # Telegram Bot Integration
 TELEGRAM_BOT_TOKEN="123456789:ABCdefGhIJKlmNoPQRstuvwxYZ"
 TELEGRAM_BOT_USERNAME="siwes_companion_bot"
-TELEGRAM_WEBHOOK_SECRET=""
+TELEGRAM_WEBHOOK_SECRET="generate_with_openssl_rand_hex_32"
 
 # Optional: Cloudflare Zero Trust Tunnel Token (if running cloudflared inside docker)
 CLOUDFLARE_TUNNEL_TOKEN=""
