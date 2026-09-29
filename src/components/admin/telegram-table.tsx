@@ -34,10 +34,17 @@ export function TelegramTable() {
   const [missingEmailCount, setMissingEmailCount] = useState<number | null>(null);
   const [confirmEmailRequest, setConfirmEmailRequest] = useState(false);
   const [emailRequestResult, setEmailRequestResult] = useState<string | null>(null);
+  const [countError, setCountError] = useState(false);
 
   const fetchMissingEmailCount = useCallback(async () => {
-    const res = await fetch("/api/admin/telegram/request-emails");
-    if (res.ok) setMissingEmailCount((await res.json()).count);
+    setCountError(false);
+    try {
+      const res = await fetch("/api/admin/telegram/request-emails");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setMissingEmailCount((await res.json()).count);
+    } catch {
+      setCountError(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -47,11 +54,17 @@ export function TelegramTable() {
   async function handleEmailRequest() {
     setConfirmEmailRequest(false);
     setEmailRequestResult("Sending…");
-    const res = await fetch("/api/admin/telegram/request-emails", { method: "POST" });
-    const json = await res.json();
-    setEmailRequestResult(
-      res.ok ? `Asked ${json.sent} of ${json.total} students for their email${json.failed ? ` (${json.failed} couldn't be reached)` : ""}.` : "Couldn't send the request."
-    );
+    try {
+      const res = await fetch("/api/admin/telegram/request-emails", { method: "POST" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      setEmailRequestResult(
+        `Asked ${json.sent} of ${json.total} students for their email${json.failed ? ` (${json.failed} couldn't be reached)` : ""}.`
+      );
+    } catch {
+      // Messages may have gone out before the failure, so don't claim nothing was sent.
+      setEmailRequestResult("The request failed or timed out. Some students may already have been messaged — check the audit log before retrying.");
+    }
     fetchMissingEmailCount();
   }
 
@@ -164,6 +177,14 @@ export function TelegramTable() {
         </button>
       </div>
 
+      {countError && (
+        <p className="text-xs text-red-600">
+          Couldn&apos;t load how many students have no email.{" "}
+          <button type="button" onClick={fetchMissingEmailCount} className="font-semibold underline">
+            Retry
+          </button>
+        </p>
+      )}
       {emailRequestResult && <p className="text-xs text-slate-600">{emailRequestResult}</p>}
 
       {!loading && <p className="text-xs text-slate-500">{data.total} linked accounts found</p>}
