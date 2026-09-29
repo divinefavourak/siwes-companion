@@ -1,5 +1,6 @@
 import { createTelegramBot, registerBotCommands } from "@/src/adapters/telegram/bot";
 import { PrismaTelegramRepository } from "@/src/adapters/telegram/prisma-telegram-repository";
+import { prismaTelegramAccounts } from "@/src/adapters/telegram/account-service";
 import { PrismaEntryRepository, PrismaProgrammeRepository } from "@/src/adapters/web/prisma-repositories";
 import { getDailyGenerator } from "@/src/lib/daily-generator";
 import { env } from "@/src/lib/env";
@@ -24,7 +25,9 @@ async function main() {
     telegram,
     entries,
     programmes,
-    generator
+    generator,
+    accounts: prismaTelegramAccounts,
+    appUrl: env.appUrl
   });
 
   console.log("Registering Telegram slash commands menu...");

@@ -4,6 +4,7 @@ import Google from "next-auth/providers/google";
 import { env, hasGoogleAuth } from "@/src/lib/env";
 import { prisma } from "@/src/lib/prisma";
 import { verifyPassword } from "@/src/lib/auth-crypto";
+import { consumeWebLoginToken } from "@/src/adapters/telegram/account-service";
 import { authConfig } from "@/auth.config";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -34,6 +35,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name: user.name ?? "Student",
           email: user.email
         };
+      }
+    }),
+    // One-tap sign-in from the Telegram bot's "Open web" button. The token is single-use,
+    // expires in 10 minutes, and is consumed here (a POST), never by loading the page.
+    Credentials({
+      id: "telegram-link",
+      name: "Telegram sign-in link",
+      credentials: { token: { label: "Token", type: "text" } },
+      async authorize(credentials) {
+        const user = await consumeWebLoginToken(String(credentials?.token ?? ""));
+        return user ? { id: user.id, name: user.name ?? "Student", email: user.email } : null;
       }
     }),
     ...(hasGoogleAuth()
