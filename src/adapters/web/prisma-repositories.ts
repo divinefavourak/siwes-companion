@@ -201,13 +201,11 @@ export class PrismaEntryRepository implements EntryRepository {
         rawSource: input.source,
         status: "DRAFT"
       },
+      // Re-capturing a date replaces only the raw note. The prior AI draft and the student's
+      // saved edit are kept, so a later note for the same day cannot erase reviewed work.
       update: {
         rawText: input.rawText,
         rawSource: input.source,
-        status: "DRAFT",
-        generatedText: null,
-        editedText: null,
-        structuredData: Prisma.JsonNull,
         generationStatus: "NOT_REQUESTED",
         generationError: null,
         version: { increment: 1 }

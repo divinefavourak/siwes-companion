@@ -62,7 +62,8 @@ export function TodayClient({
       if (!generated.ok || !payload.entry)
         throw new Error(payload.error?.message ?? "The formatted draft could not be generated.");
       setEntry(payload.entry);
-      setEditedText(payload.entry.editedText ?? payload.entry.generatedText ?? "");
+      // A fresh generation was just requested, so show the new draft rather than an older saved edit.
+      setEditedText(payload.entry.generatedText ?? payload.entry.editedText ?? "");
       setStatus("idle");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Try again when you are online.");
