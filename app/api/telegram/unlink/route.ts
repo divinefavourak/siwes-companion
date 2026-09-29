@@ -10,11 +10,11 @@ export async function POST() {
     if (!viewer) return NextResponse.json({ error: { code: "UNAUTHENTICATED", message: "Sign in required" } }, { status: 401 });
 
     if (process.env.DATABASE_URL) {
-      // A Telegram-created account signed in via the bot's link has no email or password;
+      // A Telegram-created account signed in via the bot's link may have no password;
       // unlinking it would leave no way back in once this session expires.
       if (!(await canSafelyUnlink(viewer.id))) {
         return NextResponse.json(
-          { error: { code: "CONFLICT", message: "Add an email in Telegram (/email) before disconnecting, or you'll lose access to this account." } },
+          { error: { code: "CONFLICT", message: "Set a password in Settings → Password before disconnecting Telegram, or you'll lose access to this account." } },
           { status: 409 }
         );
       }

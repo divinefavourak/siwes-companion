@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { Entry } from "@/src/core/entries/types";
 import type { Programme } from "@/src/core/siwes/types";
 import * as views from "@/src/adapters/telegram/views";
@@ -122,6 +122,7 @@ describe("Telegram views", () => {
 
   it("blocks unlinking when it would lock the student out", () => {
     expect(callbacks(views.unlinkConfirmView(false))).not.toContain("settings:unlink_exec");
+    expect(callbacks(views.unlinkConfirmView(false))).toContain("nav:password");
     expect(callbacks(views.unlinkConfirmView(true))).toContain("settings:unlink_exec");
   });
 
@@ -146,5 +147,39 @@ describe("Telegram sign-in link destinations", () => {
     expect(safeTelegramLinkDestination("https://evil.example")).toBe("/dashboard");
     expect(safeTelegramLinkDestination("//evil.example")).toBe("/dashboard");
     expect(safeTelegramLinkDestination(undefined)).toBe("/dashboard");
+  });
+});
+
+describe("safeRedirectPath", () => {
+  it("keeps same-site paths and rejects anything that could leave the site", async () => {
+    const { safeRedirectPath } = await import("@/src/lib/safe-redirect");
+    expect(safeRedirectPath("/telegram/confirm?token=abc")).toBe("/telegram/confirm?token=abc");
+    expect(safeRedirectPath("/admin")).toBe("/admin");
+    expect(safeRedirectPath("https://evil.example")).toBe("/dashboard");
+    expect(safeRedirectPath("//evil.example")).toBe("/dashboard");
+    expect(safeRedirectPath("/\\evil.example")).toBe("/dashboard");
+    expect(safeRedirectPath(null)).toBe("/dashboard");
+  });
+});
+
+describe("currentEntryText", () => {
+  it("shows the saved edit once saved, and the newest draft while under review", async () => {
+    const { currentEntryText } = await import("@/src/core/entries/entry-text");
+    expect(currentEntryText({ status: "SAVED", editedText: "edit", generatedText: "draft" })).toBe("edit");
+    expect(currentEntryText({ status: "SAVED", editedText: null, generatedText: "draft" })).toBe("draft");
+    expect(currentEntryText({ status: "READY_FOR_REVIEW", editedText: "old edit", generatedText: "new draft" })).toBe("new draft");
+    expect(currentEntryText({ status: "READY_FOR_REVIEW", editedText: "edit", generatedText: null })).toBe("edit");
+    expect(currentEntryText({ status: "DRAFT", editedText: null, generatedText: null })).toBeNull();
+  });
+});
+
+describe("describeRequester", () => {
+  it("names the Telegram account asking to connect", async () => {
+    vi.doMock("@/src/lib/prisma", () => ({ prisma: {} }));
+    const { describeRequester } = await import("@/src/adapters/telegram/account-service");
+    expect(describeRequester({ firstName: "Ada", username: "ada_dev" })).toBe("Ada (@ada_dev)");
+    expect(describeRequester({ firstName: null, username: "ada_dev" })).toBe("@ada_dev");
+    expect(describeRequester({ firstName: "Ada", username: null })).toBe("Ada");
+    expect(describeRequester({ firstName: null, username: null })).toBe("a Telegram account without a public name");
   });
 });

@@ -368,6 +368,13 @@ export function createTelegramBot(input: {
         await send(ctx, views.emailErrorView(result.status));
         return true;
       }
+      if (result.status === "rate_limited") {
+        await input.telegram.clearConversationState(userId);
+        await collapse(ctx, cardId, views.answeredView("Email", "not sent — try again later"));
+        await send(ctx, views.emailErrorView("rate_limited"));
+        if (onboarding) await askInstitution(ctx, userId);
+        return true;
+      }
       if (result.status === "send_failed") {
         await collapse(ctx, cardId, views.answeredView("Email", "not added — couldn't send"));
         if (onboarding) await askInstitution(ctx, userId);
@@ -550,7 +557,8 @@ export function createTelegramBot(input: {
         const saved = await saveEditedEntry(input.entries, {
           userId,
           entryId,
-          editedText: entry.generatedText ?? entry.editedText ?? entry.rawText,
+          // Save exactly what the card shows.
+          editedText: views.entryText(entry),
           expectedVersion: Number(version)
         });
         await ack(ctx, "Saved");

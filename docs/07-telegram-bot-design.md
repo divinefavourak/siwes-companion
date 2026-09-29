@@ -110,8 +110,9 @@ Buttons carry opaque callback data such as `entry:save:<entryId>:<version>` or `
 1. **Set up here** starts a six-step wizard. Step 1 is email (skippable), then institution, course, matric number, placement and duration. A User is created only when the student taps Set up; stray messages from unknown users get the welcome card.
 2. Email is asked first so an existing web account is found before a duplicate programme is created:
    - A new address gets a confirmation email. It is written to the user only after the link is confirmed, so nobody can claim someone else's address.
-   - An address that already has a web account gets a "Connect Telegram" email instead. Confirming it proves inbox ownership and folds the Telegram-only account into the web account (programmes, notifications and usage move over). If both accounts already have a programme the bot says so up front instead of sending a link.
+   - An address that already has a web account gets a "Connect Telegram" email instead, naming the requesting Telegram account. Confirming folds the Telegram-only account into the web account (programmes, notifications and usage move over). Because connecting grants that Telegram account sign-in access, a web account that has a password or OAuth login can only be merged while signed in as its owner; the server checks this before consuming the token. If both accounts already have a programme the bot says so up front instead of sending a link.
    - The confirmation page only reads the token; its button POSTs to consume it, so email link scanners cannot confirm on the student's behalf.
+   - At most 3 confirmation emails per hour go out per student and per recipient address, so the bot can't be used to flood an inbox.
 3. **Open web** (`/web`) issues a one-time sign-in link: 32 random bytes, SHA-256 hash stored in `VerificationToken` (`tg-login:<userId>`), 10-minute expiry. It is consumed by the `telegram-link` Auth.js credentials provider when the `/auth/telegram` page calls `signIn`, not when the page loads, so link previews cannot spend it. Links may only land on an allow-listed page (`/dashboard`, `/settings/password`).
 4. **Set a web password** (`/password`) sends the same kind of link, landing on `/settings/password`, where a Telegram-created student can add a password and then sign in with email and password.
 5. Until an email is added, the Telegram identity is the only recovery factor. Admins can send every such student an "Add your email" card from the admin Telegram page, and Home keeps an **Add email** button until one is added.
@@ -119,7 +120,7 @@ Buttons carry opaque callback data such as `entry:save:<entryId>:<version>` or `
 ### Unlink and loss
 
 - `/unlink` requires a confirmation button and removes the identity, not the user or entries.
-- Unlinking is refused (in the bot and on the web) for an account with no email, password or OAuth account, because the student would have no way back in.
+- Unlinking is refused (in the bot and on the web) for an account with no password or OAuth login, because the student would have no way back in. An email alone does not count: there is no email-link sign-in, and Telegram sign-in links stop working once unlinked.
 - A lost Telegram account is recovered through web auth; a new link token can replace the old identity.
 - One Telegram user ID can be linked to at most one app user. A token cannot be replayed.
 

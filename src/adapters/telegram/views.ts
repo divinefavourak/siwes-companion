@@ -1,5 +1,6 @@
 import { InlineKeyboard } from "grammy";
 import type { Entry } from "@/src/core/entries/types";
+import { currentEntryText } from "@/src/core/entries/entry-text";
 import type { Programme } from "@/src/core/siwes/types";
 import { addDays, isWorkingDate, weekday, type DateOnly } from "@/src/core/shared/date";
 import { escapeTelegramHtml as esc } from "@/src/adapters/telegram/format";
@@ -39,7 +40,7 @@ export function workingDaysLabel(weekdays: number[]): string {
 }
 
 export function entryText(entry: Entry): string {
-  return entry.editedText ?? entry.generatedText ?? entry.rawText;
+  return currentEntryText(entry) ?? entry.rawText;
 }
 
 function header(title: string, status?: string): string {
@@ -327,9 +328,10 @@ export function unlinkConfirmView(canUnlink: boolean): View {
     return {
       text: compose(
         header("Disconnect Telegram"),
-        "This account has no email or password yet, so disconnecting would lock you out of your logbook. Add an email first."
+        "This account has no web password yet. Telegram is your only way in, so disconnecting would lock you out of your logbook. Set a web password first."
       ),
-      keyboard: new InlineKeyboard().text("Add email", "nav:email").text("Back", "nav:settings")
+      // nav:password asks for an email first when the account has none.
+      keyboard: new InlineKeyboard().text("Set a web password", "nav:password").text("Back", "nav:settings")
     };
   }
   return {
@@ -487,18 +489,19 @@ export function emailSentView(email: string, kind: "verify" | "link"): View {
       };
 }
 
-export function emailErrorView(status: "invalid" | "linked_elsewhere" | "both_have_programmes" | "unavailable" | "send_failed"): View {
+export function emailErrorView(status: "invalid" | "linked_elsewhere" | "both_have_programmes" | "rate_limited" | "unavailable" | "send_failed"): View {
   const message = {
     invalid: "That doesn't look like an email address. Send it again, or tap Cancel.",
     linked_elsewhere: "That email's account is already connected to a different Telegram account. Try another email, or tap Cancel.",
     both_have_programmes:
       "That email already has a web account with its own SIWES programme, and so does this chat, so they can't be combined automatically. Use a different email, or contact support to merge them.",
+    rate_limited: "Too many confirmation emails were sent in the last hour. Please wait a while, then try again with /email.",
     unavailable: "That email can't be used. Try another one, or tap Cancel.",
     send_failed: "We couldn't send the email just now. Try again later with /email."
   }[status];
   return {
     text: compose(header("Email not added"), esc(message)),
-    keyboard: status === "send_failed" ? homeButton() : new InlineKeyboard().text("Cancel", "nav:cancel")
+    keyboard: status === "send_failed" || status === "rate_limited" ? homeButton() : new InlineKeyboard().text("Cancel", "nav:cancel")
   };
 }
 

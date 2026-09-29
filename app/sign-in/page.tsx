@@ -5,7 +5,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
+import type { Route } from "next";
 import { ArrowRight, CheckCircle2, Lock, Mail, AlertCircle, Loader2 } from "lucide-react";
+import { safeRedirectPath } from "@/src/lib/safe-redirect";
 
 export default function SignInPage() {
   const router = useRouter();
@@ -30,7 +32,9 @@ export default function SignInPage() {
         setError("Invalid email or password. Please try again.");
         setLoading(false);
       } else {
-        router.push("/dashboard");
+        // Return to where sign-in was requested (e.g. an admin page or a Telegram confirm link).
+        const callbackUrl = new URLSearchParams(window.location.search).get("callbackUrl");
+        router.push(safeRedirectPath(callbackUrl) as Route);
         router.refresh();
       }
     } catch {
