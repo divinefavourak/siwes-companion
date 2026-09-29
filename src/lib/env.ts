@@ -8,6 +8,7 @@ export const env = {
   groqApiKey: optionalString.parse(process.env.GROQ_API_KEY),
   anthropicApiKey: optionalString.parse(process.env.ANTHROPIC_API_KEY),
   telegramBotToken: optionalString.parse(process.env.TELEGRAM_BOT_TOKEN),
+  telegramWebhookSecret: optionalString.parse(process.env.TELEGRAM_WEBHOOK_SECRET),
   googleClientId: optionalString.parse(process.env.AUTH_GOOGLE_ID),
   googleClientSecret: optionalString.parse(process.env.AUTH_GOOGLE_SECRET),
   resendApiKey: optionalString.parse(process.env.RESEND_API_KEY),

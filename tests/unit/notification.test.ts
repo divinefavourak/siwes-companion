@@ -71,7 +71,7 @@ describe("Notification Service Unit Tests", () => {
         metadata: null,
         createdAt: new Date(),
         updatedAt: new Date(),
-      } as any);
+      } as never);
 
       const result = await createNotification({
         userId: "user-1",
@@ -117,7 +117,7 @@ describe("Notification Service Unit Tests", () => {
         },
       ];
 
-      vi.mocked(prisma.notification.findMany).mockResolvedValueOnce(mockNotifications as any);
+      vi.mocked(prisma.notification.findMany).mockResolvedValueOnce(mockNotifications as never);
       vi.mocked(prisma.notification.count).mockResolvedValueOnce(1);
 
       const res = await getUserNotifications("user-1");
@@ -161,7 +161,7 @@ describe("Notification Service Unit Tests", () => {
         reminderHour: 17,
         createdAt: new Date(),
         updatedAt: new Date(),
-      } as any);
+      } as never);
 
       const pref = await getNotificationPreference("user-1");
 
@@ -180,7 +180,7 @@ describe("Notification Service Unit Tests", () => {
         reminderHour: 18,
         createdAt: new Date(),
         updatedAt: new Date(),
-      } as any);
+      } as never);
 
       const updated = await updateNotificationPreference("user-1", {
         dailyReminderTelegram: false,
@@ -214,9 +214,9 @@ describe("Notification Service Unit Tests", () => {
         },
       };
 
-      vi.mocked(prisma.siwesProgramme.findMany).mockResolvedValueOnce([mockProgramme as any]);
+      vi.mocked(prisma.siwesProgramme.findMany).mockResolvedValueOnce([mockProgramme as never]);
       // Entry already exists!
-      vi.mocked(prisma.entry.findFirst).mockResolvedValueOnce({ id: "entry-1" } as any);
+      vi.mocked(prisma.entry.findFirst).mockResolvedValueOnce({ id: "entry-1" } as never);
 
       const sweep = await runDailyReminderSweep({ dateOverride: "2026-09-02" });
 
@@ -246,12 +246,12 @@ describe("Notification Service Unit Tests", () => {
         },
       };
 
-      vi.mocked(prisma.siwesProgramme.findMany).mockResolvedValueOnce([mockProgramme as any]);
+      vi.mocked(prisma.siwesProgramme.findMany).mockResolvedValueOnce([mockProgramme as never]);
       // No entry logged yet!
       vi.mocked(prisma.entry.findFirst).mockResolvedValueOnce(null);
       // No reminder sent yet today!
       vi.mocked(prisma.notification.findFirst).mockResolvedValueOnce(null);
-      vi.mocked(prisma.notification.create).mockResolvedValueOnce({ id: "notif-new" } as any);
+      vi.mocked(prisma.notification.create).mockResolvedValueOnce({ id: "notif-new" } as never);
 
       const sweep = await runDailyReminderSweep({ dateOverride: "2026-09-02" });
 
@@ -291,11 +291,11 @@ describe("Notification Service Unit Tests", () => {
         },
       };
 
-      vi.mocked(prisma.siwesProgramme.findMany).mockResolvedValueOnce([mockProgramme as any]);
+      vi.mocked(prisma.siwesProgramme.findMany).mockResolvedValueOnce([mockProgramme as never]);
       // No entry logged
       vi.mocked(prisma.entry.findFirst).mockResolvedValueOnce(null);
       // But already reminded today!
-      vi.mocked(prisma.notification.findFirst).mockResolvedValueOnce({ id: "existing-reminder" } as any);
+      vi.mocked(prisma.notification.findFirst).mockResolvedValueOnce({ id: "existing-reminder" } as never);
 
       const sweep = await runDailyReminderSweep({ dateOverride: "2026-09-02" });
 

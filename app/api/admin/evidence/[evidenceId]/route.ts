@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/src/lib/admin-auth";
 import { prisma } from "@/src/lib/prisma";
@@ -29,7 +30,7 @@ export async function PATCH(request: Request, { params }: Params) {
         action: "UPDATE",
         entityType: "Evidence",
         entityId: evidence.id,
-        metadata: allowedFields as any,
+        metadata: allowedFields as Prisma.InputJsonValue,
       }
     });
 

@@ -1,12 +1,22 @@
+import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import type { UserFromGetMe } from "grammy/types";
 import { createTelegramBot } from "@/src/adapters/telegram/bot";
 import { PrismaTelegramRepository } from "@/src/adapters/telegram/prisma-telegram-repository";
+import { prismaTelegramAccounts } from "@/src/adapters/telegram/account-service";
 import { PrismaEntryRepository, PrismaProgrammeRepository } from "@/src/adapters/web/prisma-repositories";
 import { getDailyGenerator } from "@/src/lib/daily-generator";
 import { env } from "@/src/lib/env";
 
 let cachedBotInfo: UserFromGetMe | null = null;
+
+// Telegram echoes the secret registered via setWebhook in this header. Without it,
+// anyone could POST forged updates carrying another user's `from.id`.
+function hasValidSecret(request: Request, secret: string): boolean {
+  const received = Buffer.from(request.headers.get("x-telegram-bot-api-secret-token") ?? "");
+  const expected = Buffer.from(secret);
+  return received.length === expected.length && timingSafeEqual(received, expected);
+}
 
 export async function GET() {
   return NextResponse.json({
@@ -19,6 +29,15 @@ export async function GET() {
 export async function POST(request: Request) {
   if (!env.telegramBotToken) {
     return NextResponse.json({ error: "Telegram is not configured" }, { status: 503 });
+  }
+
+  if (!env.telegramWebhookSecret) {
+    console.error("TELEGRAM_WEBHOOK_SECRET is not set; refusing unauthenticated webhook updates.");
+    return NextResponse.json({ error: "Telegram webhook secret is not configured" }, { status: 503 });
+  }
+
+  if (!hasValidSecret(request, env.telegramWebhookSecret)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
@@ -34,7 +53,9 @@ export async function POST(request: Request) {
       telegram,
       entries: new PrismaEntryRepository(),
       programmes: new PrismaProgrammeRepository(),
-      generator: getDailyGenerator()
+      generator: getDailyGenerator(),
+      accounts: prismaTelegramAccounts,
+      appUrl: env.appUrl
     });
 
     if (!cachedBotInfo) {

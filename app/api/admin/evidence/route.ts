@@ -1,3 +1,4 @@
+import type { EvidenceKind, EvidenceStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/src/lib/admin-auth";
 import { prisma } from "@/src/lib/prisma";
@@ -16,8 +17,8 @@ export async function GET(request: Request) {
 
     const where = {
       ...(q ? { title: { contains: q, mode: "insensitive" as const } } : {}),
-      ...(status ? { status: status as any } : {}),
-      ...(kind ? { kind: kind as any } : {}),
+      ...(status ? { status: status as EvidenceStatus } : {}),
+      ...(kind ? { kind: kind as EvidenceKind } : {}),
     };
 
     const [evidence, total] = await Promise.all([

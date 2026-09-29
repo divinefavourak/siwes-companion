@@ -14,6 +14,7 @@ import {
   WifiOff
 } from "lucide-react";
 import type { Entry } from "@/src/core/entries/types";
+import { currentEntryText } from "@/src/core/entries/entry-text";
 
 export function TodayClient({
   date,
@@ -24,9 +25,7 @@ export function TodayClient({
 }) {
   const [entry, setEntry] = useState<Entry | null>(initialEntry);
   const [rawText, setRawText] = useState(initialEntry?.rawText ?? "");
-  const [editedText, setEditedText] = useState(
-    initialEntry?.editedText ?? initialEntry?.generatedText ?? ""
-  );
+  const [editedText, setEditedText] = useState((initialEntry && currentEntryText(initialEntry)) ?? "");
   const [status, setStatus] = useState<"idle" | "saving" | "generating" | "editing" | "error">("idle");
   const [message, setMessage] = useState("");
   const storageKey = useMemo(() => `siwes-draft:${date}`, [date]);
@@ -62,7 +61,7 @@ export function TodayClient({
       if (!generated.ok || !payload.entry)
         throw new Error(payload.error?.message ?? "The formatted draft could not be generated.");
       setEntry(payload.entry);
-      setEditedText(payload.entry.editedText ?? payload.entry.generatedText ?? "");
+      setEditedText(currentEntryText(payload.entry) ?? "");
       setStatus("idle");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Try again when you are online.");

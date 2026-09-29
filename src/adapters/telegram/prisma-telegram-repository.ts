@@ -14,7 +14,17 @@ export class PrismaTelegramRepository implements TelegramLinkRepository {
       const token = await transaction.telegramLinkToken.findUnique({ where: { tokenHash: input.tokenHash } });
       if (!token || token.usedAt || token.expiresAt <= new Date()) throw new AppError("CONFLICT", "This link has expired or was already used");
       const existingTelegram = await transaction.telegramIdentity.findUnique({ where: { telegramUserId: input.telegramUserId } });
-      if (existingTelegram && existingTelegram.userId !== token.userId) throw new AppError("CONFLICT", "This Telegram account is already linked");
+      if (existingTelegram && existingTelegram.userId !== token.userId) {
+        // A Telegram-only placeholder (no email, password, OAuth account or programme) holds no
+        // data worth keeping, so it gives way to the web account being linked.
+        const holder = await transaction.user.findUnique({
+          where: { id: existingTelegram.userId },
+          select: { email: true, passwordHash: true, _count: { select: { accounts: true, programmes: true } } }
+        });
+        const isEmptyPlaceholder = holder && !holder.email && !holder.passwordHash && holder._count.accounts === 0 && holder._count.programmes === 0;
+        if (!isEmptyPlaceholder) throw new AppError("CONFLICT", "This Telegram account is already linked");
+        await transaction.user.delete({ where: { id: existingTelegram.userId } });
+      }
       const existingUserLink = await transaction.telegramIdentity.findUnique({ where: { userId: token.userId } });
       if (existingUserLink && existingUserLink.telegramUserId !== input.telegramUserId) throw new AppError("CONFLICT", "This account already has another Telegram link");
       await transaction.telegramLinkToken.update({ where: { id: token.id }, data: { usedAt: new Date(), telegramUserId: input.telegramUserId } });
