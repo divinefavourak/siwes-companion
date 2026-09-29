@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Bell, Check, Copy, ExternalLink, Mail, RefreshCw, Send, ShieldCheck, Sparkles, Unlink } from "lucide-react";
+import { ArrowLeft, Bell, Check, ChevronRight, Copy, ExternalLink, KeyRound, Mail, RefreshCw, Send, ShieldCheck, Sparkles, Unlink } from "lucide-react";
 import type { Programme } from "@/src/core/siwes/types";
 
 const WEEKDAYS = [
@@ -244,6 +244,22 @@ export default function SettingsPage() {
             Manage your working-day calendar, placement details, and connected channels.
           </p>
         </div>
+
+        <Link
+          href="/settings/password"
+          className="flex items-center justify-between gap-4 rounded-[28px] border border-slate-200 bg-white p-7 shadow-sm transition hover:border-brand/40"
+        >
+          <div className="flex items-center gap-4">
+            <div className="grid size-11 shrink-0 place-items-center rounded-2xl border border-sky-100 bg-sky-50 text-brand">
+              <KeyRound className="size-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-ink">Password</h2>
+              <p className="text-sm text-muted">Set or change the password you use to sign in on the web.</p>
+            </div>
+          </div>
+          <ChevronRight className="size-5 shrink-0 text-slate-400" />
+        </Link>
 
         {/* Programme Placement Overview */}
         {loading ? (
