@@ -54,8 +54,7 @@ function httpsPost(
   urlStr: string,
   headers: Record<string, string>,
   bodyStr: string,
-  timeoutMs: number,
-  rejectUnauthorized = true
+  timeoutMs: number
 ): Promise<HttpsResponse> {
   return new Promise((resolve, reject) => {
     const url = new URL(urlStr);
@@ -63,8 +62,7 @@ function httpsPost(
       url,
       {
         method: "POST",
-        headers,
-        rejectUnauthorized
+        headers
       },
       (res) => {
         let responseBody = "";
@@ -162,31 +160,15 @@ export class GroqJsonProvider implements JsonLlmProvider {
       }
     }
 
-    // Otherwise use node:https with graceful fallback for Windows local root CA environments
+    // Certificate validation is never disabled: that would expose the API key and student notes.
+    // Machines missing a root CA should run Node with --use-system-ca (the npm scripts already do).
     const headers = {
       Authorization: `Bearer ${this.apiKey}`,
       "Content-Type": "application/json",
       "Content-Length": Buffer.byteLength(payload).toString()
     };
 
-    let response: HttpsResponse;
-    try {
-      response = await httpsPost(this.apiUrl, headers, payload, input.timeoutMs, true);
-    } catch (err: unknown) {
-      // Local Windows machines sometimes lack the root CA. Retrying without verification
-      // would expose the API key and student notes to interception, so it is dev-only.
-      const errorObj = err as { code?: string; message?: string } | null;
-      const isCertificateError =
-        errorObj?.code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE" ||
-        errorObj?.code === "CERT_HAS_EXPIRED" ||
-        errorObj?.message?.includes("unable to verify");
-      if (isCertificateError && process.env.NODE_ENV === "development") {
-        console.warn("Groq TLS verification failed; retrying without verification (development only).");
-        response = await httpsPost(this.apiUrl, headers, payload, input.timeoutMs, false);
-      } else {
-        throw err;
-      }
-    }
+    const response = await httpsPost(this.apiUrl, headers, payload, input.timeoutMs);
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw new Error(`Groq API error (${response.statusCode}): ${response.body}`);
