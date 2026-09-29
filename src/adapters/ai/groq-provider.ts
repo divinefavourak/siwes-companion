@@ -173,13 +173,15 @@ export class GroqJsonProvider implements JsonLlmProvider {
     try {
       response = await httpsPost(this.apiUrl, headers, payload, input.timeoutMs, true);
     } catch (err: unknown) {
-      // If failed due to local Windows certificate verification in development, fallback with lenient SSL
+      // Local Windows machines sometimes lack the root CA. Retrying without verification
+      // would expose the API key and student notes to interception, so it is dev-only.
       const errorObj = err as { code?: string; message?: string } | null;
-      if (
+      const isCertificateError =
         errorObj?.code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE" ||
         errorObj?.code === "CERT_HAS_EXPIRED" ||
-        errorObj?.message?.includes("unable to verify")
-      ) {
+        errorObj?.message?.includes("unable to verify");
+      if (isCertificateError && process.env.NODE_ENV === "development") {
+        console.warn("Groq TLS verification failed; retrying without verification (development only).");
         response = await httpsPost(this.apiUrl, headers, payload, input.timeoutMs, false);
       } else {
         throw err;
