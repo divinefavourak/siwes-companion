@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Search } from "lucide-react";
+import { Mail, Search } from "lucide-react";
 import { AdminDataTable, type Column } from "@/src/components/admin/admin-data-table";
 import { AdminConfirmDialog } from "@/src/components/admin/admin-confirm-dialog";
 
@@ -31,6 +31,29 @@ export function TelegramTable() {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [confirmUnlink, setConfirmUnlink] = useState<AdminTelegramIdentity | null>(null);
+  const [missingEmailCount, setMissingEmailCount] = useState<number | null>(null);
+  const [confirmEmailRequest, setConfirmEmailRequest] = useState(false);
+  const [emailRequestResult, setEmailRequestResult] = useState<string | null>(null);
+
+  const fetchMissingEmailCount = useCallback(async () => {
+    const res = await fetch("/api/admin/telegram/request-emails");
+    if (res.ok) setMissingEmailCount((await res.json()).count);
+  }, []);
+
+  useEffect(() => {
+    fetchMissingEmailCount();
+  }, [fetchMissingEmailCount]);
+
+  async function handleEmailRequest() {
+    setConfirmEmailRequest(false);
+    setEmailRequestResult("Sending…");
+    const res = await fetch("/api/admin/telegram/request-emails", { method: "POST" });
+    const json = await res.json();
+    setEmailRequestResult(
+      res.ok ? `Asked ${json.sent} of ${json.total} students for their email${json.failed ? ` (${json.failed} couldn't be reached)` : ""}.` : "Couldn't send the request."
+    );
+    fetchMissingEmailCount();
+  }
 
   const fetchTelegram = useCallback(async () => {
     setLoading(true);
@@ -130,7 +153,18 @@ export function TelegramTable() {
             className="w-full rounded-xl border border-slate-200 bg-white pl-9 pr-4 py-2.5 text-sm outline-none focus:border-brand"
           />
         </div>
+        <button
+          type="button"
+          disabled={!missingEmailCount}
+          onClick={() => setConfirmEmailRequest(true)}
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Mail className="size-4" />
+          Ask for emails{missingEmailCount !== null ? ` (${missingEmailCount})` : ""}
+        </button>
       </div>
+
+      {emailRequestResult && <p className="text-xs text-slate-600">{emailRequestResult}</p>}
 
       {!loading && <p className="text-xs text-slate-500">{data.total} linked accounts found</p>}
 
@@ -144,6 +178,17 @@ export function TelegramTable() {
         keyExtractor={(t) => t.id}
         emptyMessage={loading ? "Loading…" : "No telegram links found."}
       />
+
+      {confirmEmailRequest && (
+        <AdminConfirmDialog
+          title="Ask students for their email"
+          description={`This sends an "Add your email" message in Telegram to ${missingEmailCount} student(s) whose account has no email. Each student gets it once per click, so avoid repeating it.`}
+          confirmLabel="Send"
+          danger={false}
+          onConfirm={handleEmailRequest}
+          onCancel={() => setConfirmEmailRequest(false)}
+        />
+      )}
 
       {confirmUnlink && (
         <AdminConfirmDialog
