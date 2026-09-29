@@ -2,6 +2,7 @@ import { getViewer } from "@/src/lib/viewer";
 import { getRepositories } from "@/src/adapters/web/repositories";
 import { dateFromTimestampInTimeZone, workingDates } from "@/src/core/shared/date";
 import { HistoryTabs } from "@/src/components/history-tabs";
+import { currentEntryText } from "@/src/core/entries/entry-text";
 
 export default async function HistoryPage() {
   const viewer = await getViewer();
@@ -26,7 +27,7 @@ export default async function HistoryPage() {
       date,
       weekday: new Date(`${date}T00:00:00`).toLocaleDateString("en-NG", { weekday: "long" }),
       saved: entry?.status === "SAVED",
-      previewText: entry?.editedText ?? entry?.generatedText ?? entry?.rawText ?? "No note yet"
+      previewText: entry ? (currentEntryText(entry) ?? entry.rawText) : "No note yet"
     };
   });
 
