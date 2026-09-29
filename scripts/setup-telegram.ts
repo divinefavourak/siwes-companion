@@ -29,7 +29,12 @@ async function setup() {
       ? cleanUrl
       : `${cleanUrl.replace(/\/$/, "")}/api/telegram/webhook`;
 
-    const secret = process.env.TELEGRAM_WEBHOOK_SECRET || token!;
+    const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
+    if (!secret || !/^[A-Za-z0-9_-]{1,256}$/.test(secret)) {
+      console.error("❌ TELEGRAM_WEBHOOK_SECRET must be set to 1-256 characters of A-Z, a-z, 0-9, _ or -.");
+      console.error("   Generate one with: openssl rand -hex 32");
+      process.exit(1);
+    }
 
     console.log(`\n🌐 Step 2: Registering webhook endpoint: ${endpoint}...`);
     await bot.api.setWebhook(endpoint, {
