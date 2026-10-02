@@ -1,0 +1,765 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SIWES Companion Film</title>
+<!--
+  SIWES Companion — story-driven product film. 1920×1080, ~75s, one clock.
+  Same engine and grammar as the ATP-Go film (Act 1 problem → the turn → Act 2 product
+  → Act 3 payoff). Restraint wins: cut, don't add.
+
+  PLAN
+  Beats: one idea each, ≤ 7 words. Durations live in SCENES; edit one and every
+  later beat re-times itself (sfx.mjs reads the same list).
+  Vocabulary:
+    text enter   — Rise: y 36→0 + fade, Decelerated, 700ms, word stagger 110ms
+    object enter — Pop In: soft spring, scale 0.9→1
+    exit         — Accelerated fade + 8px rise, 300ms, on every beat
+    camera       — 3 moves: opener pull-back (3.2×→1), lean in on the grounded draft, pull-out
+    signature    — the turn: the book draws open, its bars grow, wordmark letter-drops with blur,
+                   a sky iris floods from the mark
+    ambient      — one: the dark ground's glow breathes ±5%
+  Palette: the app's own — paper #F8FAFC / ink #0F172A, ONE accent: brand #0284C7 on light,
+  its sky variant #38BDF8 on dark.
+  Type: Bricolage Grotesque 800 display, Inter body, JetBrains Mono for UI labels.
+
+  AUDIT
+  1. Distinct enter styles: 2 (Rise, Pop In). Letter-drop and bar-grow live only in the signature.
+  2. Every beat holds ≥ 1.5s after its last element settles.
+  3. Bouncy springs: 0. Blurred enters outside the signature: 0.
+  4. Elements that vanish without an animated exit: 0 (the turn lockup is swapped only
+     while fully covered by the flood).
+  5. Camera moves: 3; one reveals the opener line, two inspect the grounded draft.
+  6. Accent colours: 1.
+  7. "Lines rise and settle; the camera pulls back once and leans in once."
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=block" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F8FAFC; --ink:#0F172A; --muted:#475569;
+    --brand:#0284C7; --sky:#38BDF8;
+    --paper-dim:rgba(248,250,252,.58);
+    --ui-bg:#0b0f16; --ui-line:rgba(255,255,255,.1); --ui-text:#d6dae0;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:#000;overflow:hidden}
+  body{font-family:Inter,system-ui,sans-serif;color:var(--ui-text)}
+  #app{position:fixed;inset:0;display:flex;flex-direction:column}
+  #viewport{flex:1;position:relative;overflow:hidden;background:#000;min-height:0}
+  #stage{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;overflow:hidden;background:#000}
+
+  /* grounds */
+  .ground{position:absolute;inset:0}
+  #g-dark{background:radial-gradient(120% 95% at 50% 45%,#12203a 0%,#0a1322 55%,#050a13 100%)}
+  #g-dark .glow{position:absolute;left:1050px;top:-520px;width:1400px;height:1400px;border-radius:50%;
+    background:radial-gradient(closest-side,rgba(56,189,248,.16),rgba(56,189,248,.05) 55%,rgba(56,189,248,0))}
+  #g-black{background:#000}
+  #g-paper{background:var(--paper)}
+  #g-paper .glow{position:absolute;left:-420px;top:360px;width:1700px;height:1200px;border-radius:50%;
+    background:radial-gradient(closest-side,rgba(2,132,199,.075),rgba(2,132,199,0))}
+
+  #cam{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0}
+  #hud{position:absolute;inset:0;pointer-events:none}
+  #fadeblack{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none}
+
+  .scene{position:absolute;inset:0;visibility:hidden}
+  .w{display:inline-block}
+  .display{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;letter-spacing:-.03em;line-height:1}
+  .mono{font-family:'JetBrains Mono',monospace}
+  .ink{color:var(--ink)} .paper{color:var(--paper)}
+  .brand{color:var(--brand)} .sky{color:var(--sky)}
+  .dim{color:var(--paper-dim)}
+
+  /* act 1 / act 3 — editorial, left-aligned */
+  .left{position:absolute;left:160px;right:160px;top:0;bottom:0;display:flex;flex-direction:column;justify-content:center}
+  .h140{font-size:116px;white-space:nowrap}
+  .typed{margin-top:48px;font-size:32px;color:var(--brand);white-space:pre}
+  .caret{display:inline-block;width:.55em;height:1.05em;background:var(--brand);vertical-align:-.18em;margin-left:4px}
+
+  /* act 2 — centred statements, glass cards */
+  .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+  .chips{margin-top:60px;display:flex;gap:16px}
+  .chip{display:inline-block;padding:14px 28px;border:1px solid rgba(255,255,255,.16);border-radius:999px;font-size:22px;color:rgba(248,250,252,.88)}
+  .card{position:absolute;left:380px;top:170px;width:1160px;height:540px;border-radius:34px;
+    background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.10);overflow:hidden}
+  .closing{position:absolute;left:0;right:0;top:800px;text-align:center;font-size:44px;white-space:nowrap}
+  .label{font-size:20px;letter-spacing:.16em;text-transform:uppercase;color:var(--sky)}
+  .head{position:absolute;left:56px;right:56px;top:44px;display:flex;justify-content:space-between;align-items:flex-end}
+  .title{font-size:36px;margin-top:14px;white-space:nowrap}
+
+  /* capture · chat */
+  .bubble{position:absolute;font-size:28px;line-height:1.45;color:var(--paper);padding:24px 30px}
+  #cp-me{right:56px;top:176px;width:760px;background:rgba(56,189,248,.13);border:1px solid rgba(56,189,248,.35);border-radius:28px 28px 8px 28px}
+  #cp-me .cmd{display:inline-block;font-size:22px;color:var(--sky);margin-right:10px}
+  #cp-bot{left:56px;top:388px;width:560px;height:84px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);border-radius:28px 28px 28px 8px;font-size:24px}
+  #cp-bot .swap{position:absolute;left:30px;top:24px;white-space:nowrap}
+  .dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--sky);margin-left:8px;vertical-align:4px}
+
+  /* draft · raw → grounded */
+  .col{position:absolute;top:44px;bottom:44px}
+  #df-raw{left:56px;width:400px}
+  #df-out{left:540px;right:56px}
+  .rule{position:absolute;left:498px;top:44px;bottom:44px;width:1px;background:rgba(255,255,255,.10)}
+  .raw{margin-top:22px;font-size:22px;line-height:1.7;color:var(--paper-dim)}
+  .hl{border-radius:6px;padding:1px 0;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+  .formal{margin-top:22px;font-size:26px;line-height:1.5;color:var(--paper)}
+  .tags{margin-top:28px;display:flex;gap:12px}
+  .tag-s{display:inline-block;padding:10px 20px;border-radius:999px;border:1px solid rgba(56,189,248,.4);color:var(--sky);font-size:18px;white-space:nowrap}
+  .ground-row{position:absolute;left:0;bottom:0;display:flex;align-items:center;gap:18px}
+  .ground-row .n{font-size:56px}
+  .ground-row .of{font-size:20px;white-space:nowrap}
+  .badge{transform-box:fill-box}
+  .badge{transform-origin:center}
+
+  /* record · the week */
+  .count{display:flex;align-items:baseline;gap:14px}
+  .count .n{font-size:96px}
+  .count .of{font-size:22px;white-space:nowrap}
+  .rows{position:absolute;left:56px;right:56px;top:212px}
+  .rrow{display:flex;align-items:center;gap:28px;height:62px;border-top:1px solid rgba(255,255,255,.08)}
+  .day{width:92px;font-size:18px;color:var(--paper-dim)}
+  .what{flex:1;font-size:25px;font-weight:500;color:var(--paper);white-space:nowrap}
+  .ok{font-size:18px;color:var(--sky)}
+
+  /* defense */
+  .q{position:absolute;left:56px;right:56px;top:128px;font-size:46px;line-height:1.12;color:var(--paper)}
+  .src{position:absolute;left:56px;top:272px;font-size:18px;color:var(--paper-dim)}
+  .ans{position:absolute;left:56px;right:56px;top:330px;padding-left:26px;border-left:3px solid var(--sky);font-size:28px;line-height:1.45;color:var(--paper)}
+  .ans .who{display:block;font-size:17px;color:var(--paper-dim);margin-bottom:6px}
+  .fb{position:absolute;left:56px;top:448px;display:inline-block;padding:12px 24px;border-radius:999px;background:var(--sky);color:var(--ink);font-size:20px;white-space:nowrap}
+
+  /* the turn + end card lockups */
+  .lock{position:absolute;left:0;right:0;text-align:center}
+  .wm{font-size:140px}
+  .tag{margin-top:28px;font-size:34px}
+  #turn-lock{top:590px}
+  #flood{position:absolute;inset:0;background:var(--sky);visibility:hidden}
+  #flood .lock{color:var(--ink)}
+  #flood .tag{color:rgba(15,23,42,.78)}
+  #flood-mark{position:absolute;left:810px;top:266px}
+  #markwrap{position:absolute;left:0;top:0;width:300px;height:268px;transform-origin:150px 134px;opacity:0}
+  #end-lock{top:556px}
+  .sweepwrap{position:relative;display:inline-block}
+  .sweep{position:absolute;left:0;top:0;width:260px;height:100%;overflow:hidden;opacity:0;
+    -webkit-mask-image:linear-gradient(90deg,transparent,#000 42%,#000 58%,transparent);
+            mask-image:linear-gradient(90deg,transparent,#000 42%,#000 58%,transparent)}
+  .sweep .wm{position:absolute;left:0;top:0;white-space:nowrap}
+  .url{margin-top:22px;font-size:30px;letter-spacing:.04em}
+
+  /* player UI */
+  #ui{flex:none;background:var(--ui-bg);border-top:1px solid var(--ui-line);padding:12px 18px 14px;font-size:13px}
+  .row{display:flex;align-items:center;gap:14px}
+  #ui button,#ui select{background:#161b24;color:var(--ui-text);border:1px solid var(--ui-line);border-radius:8px;height:32px;padding:0 12px;font:inherit;cursor:pointer}
+  #play{min-width:74px}
+  #time{font-family:'JetBrains Mono',monospace;min-width:124px;color:#a3a9b3}
+  #bar{position:relative;flex:1;height:32px;cursor:pointer;touch-action:none}
+  #segs{position:absolute;inset:9px 0;display:flex;gap:2px;border-radius:4px;overflow:hidden}
+  #segs div{height:100%}
+  #head{position:absolute;top:2px;bottom:2px;width:2px;background:var(--sky);border-radius:1px;box-shadow:0 0 0 3px rgba(56,189,248,.2)}
+  #beats{list-style:none;display:flex;gap:6px;margin-top:10px;overflow-x:auto;padding-bottom:2px;scrollbar-width:thin}
+  #beats li{flex:none;padding:6px 10px;border:1px solid var(--ui-line);border-radius:8px;cursor:pointer;white-space:nowrap;color:#9aa1ab}
+  #beats li b{font-weight:500;color:var(--ui-text);margin-right:6px}
+  #beats li.on{border-color:var(--sky);color:var(--ui-text)}
+  body.render #ui{display:none}
+</style>
+</head>
+<body>
+<div id="app">
+<div id="viewport">
+<div id="stage">
+  <div class="ground" id="g-dark"><div class="glow" id="glow"></div></div>
+  <div class="ground" id="g-black"></div>
+  <div class="ground" id="g-paper"><div class="glow"></div></div>
+
+  <div id="cam">
+    <!-- ACT 1 · the problem (paper) -->
+    <section class="scene" id="s-opener"><div class="left">
+      <h1 class="display ink h140" id="op-h">Day one of SIWES.<br>You’ll remember everything.</h1>
+    </div></section>
+
+    <section class="scene" id="s-week"><div class="left">
+      <h1 class="display ink h140" id="wk-h">Week six.<br>What did you do Tuesday?</h1>
+    </div></section>
+
+    <section class="scene" id="s-blank"><div class="left">
+      <h1 class="display brand h140" id="bl-h">The logbook<br>is still empty.</h1>
+    </div></section>
+
+    <section class="scene" id="s-night"><div class="left">
+      <h1 class="display ink h140" id="nt-h">So you write it all<br>the night before.</h1>
+      <p class="mono typed" id="nt-type"><span id="nt-text"></span><span class="caret" id="nt-caret"></span></p>
+    </div></section>
+
+    <section class="scene" id="s-panel"><div class="left">
+      <h1 class="display ink h140" id="pn-h">Then the panel<br>asks why.</h1>
+    </div></section>
+
+    <!-- ACT 2 · the product (dark) -->
+    <section class="scene" id="s-key"><div class="center">
+      <h1 class="display paper" style="font-size:116px" id="ky-h">Write it messy.<br><span class="sky">Keep it right.</span></h1>
+      <div class="chips">
+        <span class="chip mono">Telegram or web</span>
+        <span class="chip mono">Grounded drafts</span>
+        <span class="chip mono">Mock defense</span>
+      </div>
+    </div></section>
+
+    <section class="scene" id="s-capture">
+      <div class="card" id="cp-card">
+        <div class="head">
+          <div><div class="label mono">Telegram · SIWES Companion</div><div class="display paper title">Tuesday, 14 October</div></div>
+        </div>
+        <div class="bubble" id="cp-me"><span class="cmd mono">/log</span>fixed printer driver on 3 HR pcs. supervisor showed me group policy in active directory, pushed the driver to all of them at once</div>
+        <div class="bubble" id="cp-bot">
+          <span class="swap" id="cp-wait"><span class="dim">Drafting your entry</span><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>
+          <span class="swap" id="cp-done">Draft ready. <span class="dim">Review it before you save.</span></span>
+        </div>
+      </div>
+      <p class="display paper closing" id="cp-line">Send it the way you’d text it.</p>
+    </section>
+
+    <section class="scene" id="s-draft">
+      <div class="card" id="df-card" style="height:560px">
+        <div class="col" id="df-raw">
+          <div class="label mono" style="color:var(--paper-dim)">Your note</div>
+          <p class="raw mono"><span class="hl">fixed printer driver on 3 HR pcs.</span> <span class="hl">supervisor showed me group policy in active directory,</span> <span class="hl">pushed the driver to all of them at once</span></p>
+        </div>
+        <div class="rule"></div>
+        <div class="col" id="df-out">
+          <div class="label mono">Logbook entry</div>
+          <p class="formal" id="df-formal">Resolved a printer driver fault on three workstations in the HR unit. Guided by my supervisor, I used Group Policy in Active Directory to push the driver to all three machines at once.</p>
+          <div class="tags">
+            <span class="tag-s mono">Active Directory</span>
+            <span class="tag-s mono">Group Policy</span>
+            <span class="tag-s mono">Troubleshooting</span>
+          </div>
+          <div class="ground-row" id="df-ground">
+            <svg width="64" height="64" viewBox="-32 -32 64 64" style="overflow:visible"><g class="badge" id="df-badge">
+              <circle r="30" fill="#38BDF8"/>
+              <path id="df-check" d="M-13 1 L-4 10 L14 -10" fill="none" stroke="#0F172A" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"
+                    pathLength="1" stroke-dasharray="1 1" stroke-dashoffset="1"/>
+            </g></svg>
+            <span class="display sky n" id="df-n">0</span>
+            <span class="mono dim of">of 3 claims traced to your note</span>
+          </div>
+        </div>
+      </div>
+      <p class="display paper closing" id="df-line">Formal. Grounded. Nothing invented.</p>
+    </section>
+
+    <section class="scene" id="s-record">
+      <div class="card" id="rc-card" style="height:560px">
+        <div class="head">
+          <div><div class="label mono">Logbook · Week 6</div><div class="display paper title">13 – 17 October</div></div>
+          <div class="count"><span class="display sky n" id="rc-n">0</span><span class="mono dim of">/ 60 days logged</span></div>
+        </div>
+        <div class="rows">
+          <div class="rrow"><span class="day mono">MON 13</span><span class="what">Set up workstations for two new staff</span><span class="ok mono">Saved ✓</span></div>
+          <div class="rrow"><span class="day mono">TUE 14</span><span class="what">Pushed a printer driver with Group Policy</span><span class="ok mono">Saved ✓</span></div>
+          <div class="rrow"><span class="day mono">WED 15</span><span class="what">Crimped and tested Cat6 cables for the server room</span><span class="ok mono">Saved ✓</span></div>
+          <div class="rrow"><span class="day mono">THU 16</span><span class="what">Documented IP allocation for the second floor</span><span class="ok mono">Saved ✓</span></div>
+          <div class="rrow"><span class="day mono">FRI 17</span><span class="what">Reviewed the week’s tickets with my supervisor</span><span class="ok mono">Saved ✓</span></div>
+        </div>
+      </div>
+      <p class="display paper closing" id="rc-line">Every working day, on the record.</p>
+    </section>
+
+    <section class="scene" id="s-defense">
+      <div class="card" id="dp-card">
+        <div class="head"><div class="label mono">Mock defense · Examiner</div></div>
+        <p class="display q" id="dp-q">Why use Group Policy instead of<br>installing it on each PC?</p>
+        <div class="src mono" id="dp-src">From your entry · Tue 14 Oct</div>
+        <p class="ans" id="dp-ans"><span class="who mono">Your answer</span>One policy pushed the driver to all three PCs at once.</p>
+        <span class="fb mono" id="dp-fb">Clear, and backed by your record ✓</span>
+      </div>
+      <p class="display paper closing" id="dp-line">Rehearse the panel before it’s real.</p>
+    </section>
+
+    <!-- ACT 3 · payoff (paper) -->
+    <section class="scene" id="s-answer"><div class="left">
+      <h1 class="display ink h140" id="an-h">What did you do Tuesday?<br><span class="brand">It’s on the record.</span></h1>
+    </div></section>
+
+    <section class="scene" id="s-triple"><div class="left">
+      <h1 class="display ink h140 tri">Document it.</h1>
+      <h1 class="display ink h140 tri">Understand it.</h1>
+      <h1 class="display brand h140 tri">Defend it.</h1>
+    </div></section>
+
+    <section class="scene" id="s-end">
+      <div class="lock" id="end-lock">
+        <div class="sweepwrap" id="end-wmwrap">
+          <h2 class="display ink wm" id="end-wm">SIWES Companion</h2>
+          <div class="sweep" id="end-sweep"><h2 class="display brand wm" id="end-glint">SIWES Companion</h2></div>
+        </div>
+        <p class="tag" style="color:var(--muted)" id="end-tag">Document your SIWES. Defend it confidently.</p>
+        <p class="mono url brand" id="end-url">swcompanion.akanbi.dev</p>
+      </div>
+    </section>
+  </div>
+
+  <div id="hud">
+    <div id="markwrap">
+      <!-- the logo, redrawn as strokes so it can draw itself: an open book, three rising bars -->
+      <svg id="mark" viewBox="232 262 560 500" width="300" height="268">
+        <path id="mk-ol" d="M512 718 Q420 622 270 612 L270 402" fill="none" stroke="#38BDF8" stroke-width="36" pathLength="1" stroke-dasharray="1 1"/>
+        <path id="mk-or" d="M512 718 Q604 622 754 612 L754 402" fill="none" stroke="#38BDF8" stroke-width="36" pathLength="1" stroke-dasharray="1 1"/>
+        <path id="mk-il" d="M490 642 Q424 586 328 576 L328 356" fill="none" stroke="#38BDF8" stroke-width="32" pathLength="1" stroke-dasharray="1 1"/>
+        <path id="mk-ir" d="M534 642 Q600 586 696 576 L696 356" fill="none" stroke="#38BDF8" stroke-width="32" pathLength="1" stroke-dasharray="1 1"/>
+        <rect class="bar" id="mk-b1" x="405" y="430" width="70" height="148" rx="35" fill="#38BDF8"/>
+        <rect class="bar" id="mk-b2" x="482" y="360" width="80" height="216" rx="40" fill="#38BDF8"/>
+        <rect class="bar" id="mk-b3" x="570" y="284" width="82" height="248" rx="41" fill="#38BDF8"/>
+      </svg>
+    </div>
+    <div class="lock" id="turn-lock" style="visibility:hidden">
+      <h2 class="display paper wm" id="tl-wm">SIWES Companion</h2>
+      <p class="tag dim" id="tl-tag">Your SIWES, on the record.</p>
+    </div>
+    <div id="flood">
+      <div id="flood-mark"></div>
+      <div class="lock" style="top:590px">
+        <h2 class="display wm" id="fl-wm">SIWES Companion</h2>
+        <p class="tag" id="fl-tag">Your SIWES, on the record.</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="fadeblack"></div>
+</div>
+</div>
+
+<div id="ui">
+  <div class="row">
+    <button id="play">Play</button>
+    <span id="time">0.00 / 0.00</span>
+    <div id="bar"><div id="segs"></div><div id="head"></div></div>
+    <select id="speed" title="Playback speed">
+      <option value="0.25">0.25×</option><option value="0.5">0.5×</option>
+      <option value="1" selected>1×</option><option value="1.5">1.5×</option><option value="2">2×</option>
+    </select>
+  </div>
+  <ol id="beats"></ol>
+</div>
+</div>
+
+<script>
+// ───────────────────────── timeline: edit durations here ─────────────────────────
+// act: 1 problem · 0 turn · 2 product · 3 payoff. Starts are cumulative, so trimming
+// one beat shifts everything after it. Element times inside each beat are beat-relative.
+const SCENES = [
+  { id:'opener',   act:1, dur:4.8, name:'Opener · You’ll remember' },
+  { id:'week',     act:1, dur:3.4, name:'Week six · Tuesday?' },
+  { id:'blank',    act:1, dur:3.4, name:'The logbook is empty' },
+  { id:'night',    act:1, dur:4.8, name:'The night before' },
+  { id:'panel',    act:1, dur:3.6, name:'The panel asks why' },
+  { id:'turn',     act:0, dur:6.6, name:'The turn · SIWES Companion' },
+  { id:'key',      act:2, dur:4.8, name:'The key · Write it messy' },
+  { id:'capture',  act:2, dur:6.6, name:'Proof · Capture on Telegram' },
+  { id:'draft',    act:2, dur:9.0, name:'Proof · Grounded draft' },
+  { id:'record',   act:2, dur:6.0, name:'Proof · The week, on record' },
+  { id:'defense',  act:2, dur:7.0, name:'Proof · Mock defense' },
+  { id:'answer',   act:3, dur:3.8, name:'Answer · It’s on the record' },
+  { id:'triple',   act:3, dur:4.8, name:'Triple' },
+  { id:'end',      act:3, dur:6.4, name:'End card' },
+];
+
+// ───────────────────────── motion system ─────────────────────────
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, p) => a + (b - a) * p;
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+
+function bezier(x1, y1, x2, y2) {
+  const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx;
+  const cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+  const X = t => ((ax * t + bx) * t + cx) * t;
+  const Y = t => ((ay * t + by) * t + cy) * t;
+  return x => {
+    if (x <= 0) return 0;
+    if (x >= 1) return 1;
+    let lo = 0, hi = 1, t = x;
+    for (let i = 0; i < 30; i++) { if (X(t) < x) lo = t; else hi = t; t = (lo + hi) / 2; }
+    return Y(t);
+  };
+}
+const E = {
+  std:  bezier(.4, 0, .2, 1),
+  emph: bezier(.2, 0, 0, 1),
+  dec:  bezier(0, 0, .2, 1),
+  acc:  bezier(.4, 0, 1, 1),
+};
+// soft spring 1−e^(−5t)·cos(1.8πt), corrected to land exactly on 1 (≈6% overshoot)
+const softRaw = p => 1 - Math.exp(-5 * p) * Math.cos(1.8 * Math.PI * p);
+const SOFT_END = softRaw(1);
+const soft = p => p <= 0 ? 0 : p >= 1 ? 1 : softRaw(p) + (1 - SOFT_END) * p;
+
+// Rise — the one text enter
+function rise1(el, lt, a, dy = 36, d = 0.7) {
+  const p = E.dec(prog(lt, a, a + d));
+  el.style.opacity = p;
+  el.style.transform = p >= 1 ? 'none' : `translate3d(0,${(dy * (1 - p)).toFixed(2)}px,0)`;
+}
+function riseAll(ws, lt, a, stag = 0.11, dy = 36) { ws.forEach((w, i) => rise1(w, lt, a + i * stag, dy)); }
+// Pop In — the one object enter
+function pop(el, lt, a, d = 0.8) {
+  el.style.opacity = E.dec(prog(lt, a, a + 0.3));
+  el.style.transform = `scale(${(0.9 + 0.1 * soft(prog(lt, a, a + d))).toFixed(4)})`;
+}
+// the one exit
+function exitRoot(root, lt, dur) {
+  const q = E.acc(prog(lt, dur - 0.45, dur - 0.15));
+  root.style.opacity = 1 - q;
+  root.style.transform = q ? `translate3d(0,${(-8 * q).toFixed(2)}px,0)` : 'none';
+}
+function draw(el, p) { el.style.strokeDashoffset = 1 - p; el.style.opacity = p > 0.002 ? 1 : 0; }
+function mix(a, b, p) {
+  const h = s => [1, 3, 5].map(i => parseInt(s.slice(i, i + 2), 16));
+  const A = h(a), B = h(b);
+  return `rgb(${A.map((v, i) => Math.round(lerp(v, B[i], p))).join(',')})`;
+}
+
+function splitWords(root) {
+  const out = [];
+  (function walk(node) {
+    for (const ch of [...node.childNodes]) {
+      if (ch.nodeType === 3) {
+        const frag = document.createDocumentFragment();
+        for (const part of ch.textContent.split(/(\s+)/)) {
+          if (!part) continue;
+          if (/^\s+$/.test(part)) { frag.appendChild(document.createTextNode(part)); continue; }
+          const s = document.createElement('span'); s.className = 'w'; s.textContent = part;
+          frag.appendChild(s); out.push(s);
+        }
+        node.replaceChild(frag, ch);
+      } else if (ch.nodeType === 1 && ch.tagName !== 'BR') walk(ch);
+    }
+  })(root);
+  return out;
+}
+function splitLetters(el) {
+  const chars = [...el.textContent]; el.textContent = '';
+  return chars.map(c => { const s = document.createElement('span'); s.className = 'w'; s.textContent = c === ' ' ? ' ' : c; el.appendChild(s); return s; });
+}
+
+// ───────────────────────── build ─────────────────────────
+const S = {};
+let TOTAL = 0;
+for (const sc of SCENES) { sc.start = TOTAL; TOTAL += sc.dur; sc.root = document.getElementById('s-' + sc.id); S[sc.id] = sc; }
+
+const stage = $('#stage'), camEl = $('#cam');
+const gBlack = $('#g-black'), gPaper = $('#g-paper'), glow = $('#glow');
+const markWrap = $('#markwrap');
+const mk = { ol: $('#mk-ol'), or: $('#mk-or'), il: $('#mk-il'), ir: $('#mk-ir'), bars: [$('#mk-b1'), $('#mk-b2'), $('#mk-b3')] };
+const BARS = mk.bars.map(b => ({ y: +b.getAttribute('y'), h: +b.getAttribute('height'), w: +b.getAttribute('width') }));
+const turnLock = $('#turn-lock'), flood = $('#flood'), fadeBlack = $('#fadeblack');
+const W = {};
+const TYPED = 'Mon: office work. Tue: office work. Wed: office work.';
+
+function build() {
+  W.opener = splitWords($('#op-h'));
+  W.week = splitWords($('#wk-h'));
+  W.blank = splitWords($('#bl-h'));
+  W.night = splitWords($('#nt-h'));
+  W.panel = splitWords($('#pn-h'));
+  W.key = splitWords($('#ky-h'));
+  W.chips = $$('#s-key .chip');
+  W.cpLine = splitWords($('#cp-line'));
+  W.dots = $$('#cp-bot .dot');
+  W.formal = splitWords($('#df-formal'));
+  W.tags = $$('#s-draft .tag-s');
+  W.hl = $$('#s-draft .hl');
+  W.dfLine = splitWords($('#df-line'));
+  W.rows = $$('#s-record .rrow');
+  W.rcLine = splitWords($('#rc-line'));
+  W.q = splitWords($('#dp-q'));
+  W.dpLine = splitWords($('#dp-line'));
+  W.answer = splitWords($('#an-h'));
+  W.tri = $$('#s-triple .tri').map(splitWords);
+  W.turnLetters = splitLetters($('#tl-wm'));
+  W.turnTag = splitWords($('#tl-tag'));
+  splitLetters($('#fl-wm')); splitWords($('#fl-tag'));   // identical layout to the lockup it covers
+  W.endTag = splitWords($('#end-tag'));
+
+  // ink copy of the mark carried inside the flood
+  const ink = $('#mark').cloneNode(true);
+  ink.removeAttribute('id');
+  ink.querySelectorAll('[id]').forEach(n => n.removeAttribute('id'));
+  ink.querySelectorAll('path,rect').forEach(n => {
+    n.removeAttribute('stroke-dasharray');
+    if (n.getAttribute('stroke')) n.setAttribute('stroke', '#0F172A');
+    if (n.getAttribute('fill') && n.getAttribute('fill') !== 'none') n.setAttribute('fill', '#0F172A');
+  });
+  $('#flood-mark').appendChild(ink);
+}
+
+// ───────────────────────── camera (3 moves) ─────────────────────────
+let CAM = [];
+function stagePoint(el) {
+  const r = el.getBoundingClientRect(), s = stage.getBoundingClientRect(), k = s.width / 1920;
+  return { x: (r.left + r.width / 2 - s.left) / k, y: (r.top + r.height / 2 - s.top) / k };
+}
+function buildCamera() {
+  const word = stagePoint(W.opener[5]);   // "remember"
+  const df = S.draft.start;
+  CAM = [
+    [S.opener.start,        3.2, word.x, word.y],
+    [S.opener.start + 0.85, 3.2, word.x, word.y],
+    [S.opener.start + 2.45, 1,   960, 540],   // move 1 · pull-back reveals the line
+    [df + 1.2,              1,   960, 540],
+    [df + 2.8,              1.2, 960, 450],   // move 2 · lean in on the grounded draft
+    [df + 6.0,              1.2, 960, 450],
+    [df + 7.6,              1,   960, 540],   // move 3 · pull out for the payoff line
+  ];
+}
+function camera(t) {
+  let [, s, x, y] = CAM[0];
+  for (let i = 0; i < CAM.length - 1; i++) {
+    const a = CAM[i], b = CAM[i + 1];
+    if (t >= b[0]) { [, s, x, y] = b; continue; }
+    if (t >= a[0]) { const p = E.emph(prog(t, a[0], b[0])); s = lerp(a[1], b[1], p); x = lerp(a[2], b[2], p); y = lerp(a[3], b[3], p); }
+    break;
+  }
+  camEl.style.transform = `translate(960px,540px) scale(${s.toFixed(4)}) translate(${(-x).toFixed(2)}px,${(-y).toFixed(2)}px)`;
+}
+
+// ───────────────────────── grounds ─────────────────────────
+function grounds(t) {
+  const tt = S.turn.start, a3 = S.answer.start;
+  gBlack.style.opacity = (t >= tt && t < tt + 5.9) ? 1 : 0;            // hard cut in; swapped to dark under the flood
+  const paper = t < tt ? 1 : E.std(prog(t, a3 - 0.1, a3 + 0.5));
+  gPaper.style.opacity = paper;
+  glow.style.transform = `scale(${(1 + 0.05 * Math.sin(2 * Math.PI * t / 6)).toFixed(4)})`; // the one ambient behaviour
+  return paper;
+}
+
+// ───────────────────────── the mark (one element, whole film) ─────────────────────────
+const AT = { turn: { x: 960, y: 400, s: 1 }, corner: { x: 112, y: 100, s: 0.3 }, end: { x: 960, y: 380, s: 1 } };
+function mark(t, paper) {
+  const lt = t - S.turn.start;
+  if (lt < 0) { markWrap.style.opacity = 0; return; }
+  markWrap.style.opacity = 1;
+  // the book opens from the spine outwards, then its three bars grow in turn
+  const outer = E.emph(prog(lt, 0.2, 1.3)), inner = E.emph(prog(lt, 0.4, 1.45));
+  draw(mk.ol, outer); draw(mk.or, outer); draw(mk.il, inner); draw(mk.ir, inner);
+  mk.bars.forEach((b, i) => {
+    // grow the bar's real height from its base (scaleY would flatten the round caps)
+    const a = 1.15 + i * 0.12, g = BARS[i], h = Math.max(g.w, g.h * soft(prog(lt, a, a + 0.8)));
+    b.style.opacity = E.dec(prog(lt, a, a + 0.2));
+    b.setAttribute('y', (g.y + g.h - h).toFixed(2));
+    b.setAttribute('height', h.toFixed(2));
+  });
+  const col = mix('#38BDF8', '#0284C7', paper);
+  for (const p of [mk.ol, mk.or, mk.il, mk.ir]) p.style.stroke = col;
+  for (const b of mk.bars) b.style.fill = col;
+
+  const tk = S.key.start + 0.25, te = S.end.start + 0.1;
+  let from = AT.turn, to = AT.turn, p = 0;
+  if (t >= te) { from = AT.corner; to = AT.end; p = soft(prog(t, te, te + 0.9)); }
+  else if (t >= tk) { from = AT.turn; to = AT.corner; p = soft(prog(t, tk, tk + 0.85)); }
+  const x = lerp(from.x, to.x, p), y = lerp(from.y, to.y, p), s = lerp(from.s, to.s, p);
+  markWrap.style.transform = `translate(${(x - 150).toFixed(2)}px,${(y - 134).toFixed(2)}px) scale(${s.toFixed(4)})`;
+}
+
+// ───────────────────────── the turn · signature ─────────────────────────
+function turn(t) {
+  const lt = t - S.turn.start;
+  const lockOn = lt >= 0 && lt < 5.9;
+  turnLock.style.visibility = lockOn ? 'visible' : 'hidden';
+  if (lockOn) {
+    W.turnLetters.forEach((l, i) => {
+      const a = 1.5 + i * 0.03, p = E.emph(prog(lt, a, a + 0.6));
+      l.style.opacity = p;
+      l.style.transform = p >= 1 ? 'none' : `translate3d(0,${(-90 * (1 - p)).toFixed(2)}px,0)`;
+      l.style.filter = p >= 1 ? 'none' : `blur(${(12 * (1 - p)).toFixed(2)}px)`;
+    });
+    riseAll(W.turnTag, lt, 2.1);
+  }
+  const floodOn = lt >= 4.7 && lt < 6.75;
+  flood.style.visibility = floodOn ? 'visible' : 'hidden';
+  if (floodOn) {
+    const r = 2300 * E.emph(prog(lt, 4.7, 5.8));
+    flood.style.clipPath = `circle(${r.toFixed(1)}px at 960px 400px)`;
+    flood.style.opacity = 1 - E.acc(prog(lt, 6.4, 6.75));
+  }
+}
+
+// ───────────────────────── beats ─────────────────────────
+const HL_AT = [4.0, 4.5, 5.0];   // draft: each raw phrase lights as its claim is traced
+const FR = {
+  opener(lt) {
+    // "remember" is on screen first under the 3.2× camera; the rest rise in as it pulls back
+    const order = [0, 1, 2, 3, 4, -1, 5];
+    W.opener.forEach((w, i) => rise1(w, lt, i === 5 ? 0.05 : 0.95 + order[i] * 0.11));
+  },
+  week(lt) { riseAll(W.week, lt, 0.15); },
+  blank(lt) { riseAll(W.blank, lt, 0.15); },
+  night(lt) {
+    riseAll(W.night, lt, 0.15);
+    const tp = prog(lt, 1.3, 1.3 + TYPED.length / 40);            // the film's one typewriter
+    $('#nt-text').textContent = TYPED.slice(0, Math.floor(tp * TYPED.length));
+    const caret = $('#nt-caret');
+    caret.style.opacity = lt < 1.3 ? 0 : 1 - E.acc(prog(lt, 1.3 + TYPED.length / 40 + 0.4, 1.3 + TYPED.length / 40 + 0.7));
+  },
+  panel(lt) { riseAll(W.panel, lt, 0.15); },
+  key(lt) {
+    riseAll(W.key, lt, 0.5);
+    W.chips.forEach((c, i) => pop(c, lt, 1.6 + i * 0.14));
+  },
+  capture(lt) {
+    pop($('#cp-card'), lt, 0.15);
+    pop($('#cp-me'), lt, 0.8);
+    riseAll(W.cpLine, lt, 1.3);
+    pop($('#cp-bot'), lt, 2.2);
+    W.dots.forEach((d, i) => { d.style.opacity = (0.35 + 0.65 * Math.max(0, Math.sin(2 * Math.PI * (lt * 1.6 - i * 0.18)))).toFixed(3); });
+    const wait = $('#cp-wait'), q = E.acc(prog(lt, 3.4, 3.7));
+    wait.style.opacity = 1 - q; wait.style.transform = q ? `translate3d(0,${(-8 * q).toFixed(2)}px,0)` : 'none';
+    rise1($('#cp-done'), lt, 3.55, 20);
+  },
+  draft(lt) {
+    pop($('#df-card'), lt, 0.15);
+    rise1($('#df-raw'), lt, 0.6, 20);
+    rise1($('#df-out .label'), lt, 1.0, 20);
+    riseAll(W.formal, lt, 1.2, 0.028, 20);
+    W.tags.forEach((c, i) => pop(c, lt, 3.0 + i * 0.14));
+    rise1($('#df-ground'), lt, 3.7, 20);
+    W.hl.forEach((h, i) => {
+      const p = E.std(prog(lt, HL_AT[i], HL_AT[i] + 0.3));
+      h.style.backgroundColor = `rgba(56,189,248,${(0.22 * p).toFixed(3)})`;
+      h.style.color = mix('#9fa3a8', '#F8FAFC', p);
+    });
+    $('#df-n').textContent = HL_AT.filter(a => lt >= a).length;
+    pop($('#df-badge'), lt, 5.2);
+    draw($('#df-check'), E.dec(prog(lt, 5.35, 5.7)));
+    riseAll(W.dfLine, lt, 6.1);
+  },
+  record(lt) {
+    pop($('#rc-card'), lt, 0.15);
+    W.rows.forEach((r, i) => rise1(r, lt, 0.9 + i * 0.09));
+    $('#rc-n').textContent = Math.round(30 * E.emph(prog(lt, 0.9, 3.1)));
+    riseAll(W.rcLine, lt, 1.8);
+  },
+  defense(lt) {
+    pop($('#dp-card'), lt, 0.15);
+    rise1($('#dp-card .label'), lt, 0.5, 20);
+    riseAll(W.q, lt, 0.7, 0.06, 24);
+    rise1($('#dp-src'), lt, 1.7, 20);
+    rise1($('#dp-ans'), lt, 2.4, 20);
+    pop($('#dp-fb'), lt, 3.4);
+    riseAll(W.dpLine, lt, 3.9);
+  },
+  answer(lt) { riseAll(W.answer, lt, 0.4); },
+  triple(lt) { W.tri.forEach((ws, i) => riseAll(ws, lt, 0.15 + i * 0.95)); },
+  end(lt) {
+    rise1($('#end-wmwrap'), lt, 0.75);
+    riseAll(W.endTag, lt, 1.05);
+    rise1($('#end-url'), lt, 1.5);
+    const sw = E.std(prog(lt, 2.4, 3.4)), width = $('#end-wm').offsetWidth;
+    const x = lerp(-260, width + 20, sw);
+    const band = $('#end-sweep');
+    band.style.opacity = sw > 0 && sw < 1 ? 1 : 0;
+    band.style.transform = `translate3d(${x.toFixed(2)}px,0,0)`;
+    $('#end-glint').style.transform = `translate3d(${(-x).toFixed(2)}px,0,0)`;
+  },
+};
+
+function render(t) {
+  const paper = grounds(t);
+  camera(t);
+  for (const sc of SCENES) {
+    if (!sc.root) continue;
+    const lt = t - sc.start, on = lt >= -0.05 && lt <= sc.dur + 0.05;
+    sc.root.style.visibility = on ? 'visible' : 'hidden';
+    if (!on) continue;
+    FR[sc.id](lt);
+    if (sc.id !== 'end') exitRoot(sc.root, lt, sc.dur);
+  }
+  turn(t);
+  mark(t, paper);
+  fadeBlack.style.opacity = E.std(prog(t, TOTAL - 0.8, TOTAL));
+  if (!RENDER) updateUI(t);
+}
+
+// ───────────────────────── player ─────────────────────────
+const RENDER = new URLSearchParams(location.search).has('render');
+if (RENDER) document.body.classList.add('render');
+let T = 0, playing = false, speed = 1, last = null;
+const fmt = s => `${Math.floor(s / 60)}:${(s % 60).toFixed(2).padStart(5, '0')}`;
+
+function fit() {
+  if (RENDER) { stage.style.transform = 'none'; return; }
+  const vp = $('#viewport'), w = vp.clientWidth, h = vp.clientHeight, k = Math.min(w / 1920, h / 1080);
+  stage.style.transform = `translate(${(w - 1920 * k) / 2}px,${(h - 1080 * k) / 2}px) scale(${k})`;
+}
+function buildUI() {
+  const segs = $('#segs'), beats = $('#beats');
+  const tone = { 1: '#d5dde6', 0: '#2f3540', 2: '#2a6f93', 3: '#a9b6c4' };
+  SCENES.forEach((sc, i) => {
+    const d = document.createElement('div');
+    d.style.flex = sc.dur; d.style.background = tone[sc.act]; d.title = sc.name;
+    segs.appendChild(d);
+    const li = document.createElement('li');
+    li.innerHTML = `<b>${String(i + 1).padStart(2, '0')}</b>${sc.name} <span style="opacity:.6">${fmt(sc.start)}</span>`;
+    li.onclick = () => { T = sc.start; };
+    beats.appendChild(li); sc.li = li;
+  });
+  const bar = $('#bar');
+  const seek = e => { const r = bar.getBoundingClientRect(); T = clamp((e.clientX - r.left) / r.width) * TOTAL; };
+  bar.addEventListener('pointerdown', e => { bar.setPointerCapture(e.pointerId); seek(e); bar.onpointermove = seek; });
+  bar.addEventListener('pointerup', () => { bar.onpointermove = null; });
+  $('#play').onclick = toggle;
+  $('#speed').onchange = e => { speed = +e.target.value; };
+  addEventListener('keydown', e => {
+    if (e.code === 'Space') { e.preventDefault(); toggle(); }
+    if (e.code === 'ArrowRight') T = Math.min(TOTAL, T + (e.shiftKey ? 5 : 1));
+    if (e.code === 'ArrowLeft') T = Math.max(0, T - (e.shiftKey ? 5 : 1));
+    if (e.key === ']' || e.key === '[') {
+      const i = SCENES.findIndex(sc => T >= sc.start && T < sc.start + sc.dur);
+      const j = clamp(i + (e.key === ']' ? 1 : -1), 0, SCENES.length - 1);
+      T = SCENES[j].start;
+    }
+  });
+}
+function toggle() { if (!playing && T >= TOTAL) T = 0; playing = !playing; $('#play').textContent = playing ? 'Pause' : 'Play'; }
+let curBeat = -1;
+function updateUI(t) {
+  $('#time').textContent = `${fmt(t)} / ${fmt(TOTAL)}`;
+  $('#head').style.left = `calc(${(t / TOTAL) * 100}% - 1px)`;
+  const i = SCENES.findIndex(sc => t >= sc.start && t < sc.start + sc.dur);
+  if (i !== curBeat) {
+    SCENES.forEach((sc, j) => sc.li.classList.toggle('on', j === i));
+    if (i >= 0) SCENES[i].li.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    curBeat = i;
+  }
+}
+function tick(now) {
+  if (playing) {
+    if (last != null) T += (now - last) / 1000 * speed;
+    if (T >= TOTAL) { T = TOTAL; playing = false; $('#play').textContent = 'Play'; }
+    last = now;
+  } else last = null;
+  render(T);
+  requestAnimationFrame(tick);
+}
+
+(async function init() {
+  build();
+  fit();
+  if (!RENDER) { buildUI(); addEventListener('resize', fit); }
+  await Promise.all(['800 100px "Bricolage Grotesque"', '400 20px Inter', '500 20px Inter', '400 20px "JetBrains Mono"'].map(f => document.fonts.load(f)));
+  await document.fonts.ready;
+  buildCamera();                 // measured after fonts land, before any transform is applied
+  render(0);
+  window.__film = {
+    duration: TOTAL,
+    ready: true,
+    seek(t) { render(t); return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); },
+  };
+  if (!RENDER) requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
