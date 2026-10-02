@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  ArrowLeft,
   CheckCircle2,
   Edit3,
   FileCheck2,
@@ -18,9 +20,13 @@ import { currentEntryText } from "@/src/core/entries/entry-text";
 
 export function TodayClient({
   date,
+  isToday = true,
+  historyHref = "/dashboard/history",
   initialEntry
 }: {
   date: string;
+  isToday?: boolean;
+  historyHref?: string;
   initialEntry: Entry | null;
 }) {
   const [entry, setEntry] = useState<Entry | null>(initialEntry);
@@ -104,18 +110,34 @@ export function TodayClient({
       {/* Header */}
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <div className="inline-flex items-center gap-2 rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-brand">
-            <FileText className="size-3.5" /> Daily Logbook Entry
+          {!isToday && (
+            <Link
+              href={historyHref}
+              className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800"
+            >
+              <ArrowLeft className="size-3.5" /> Back to history
+            </Link>
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center gap-2 rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-brand">
+              <FileText className="size-3.5" /> Daily Logbook Entry
+            </div>
+            {!isToday && (
+              <div className="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
+                {entry?.status === "SAVED" ? "Editing a past entry" : "Back-filling a past day"}
+              </div>
+            )}
           </div>
           <h1 className="mt-2 text-3xl sm:text-4xl font-bold tracking-tight text-slate-900">
-            What did you work on today?
+            {isToday ? "What did you work on today?" : "What did you work on this day?"}
           </h1>
           <p className="mt-1.5 text-sm text-slate-500 font-medium">
-            {new Date(`${date}T00:00:00`).toLocaleDateString("en-NG", {
+            {new Date(`${date}T00:00:00Z`).toLocaleDateString("en-NG", {
               weekday: "long",
               day: "numeric",
               month: "long",
-              year: "numeric"
+              year: "numeric",
+              timeZone: "UTC"
             })}
           </p>
         </div>
@@ -187,7 +209,7 @@ export function TodayClient({
       </AnimatePresence>
 
       {/* Loading Skeleton while formatting (avoids layout shift) */}
-      {status === "generating" && !entry?.generatedText && (
+      {status === "generating" && !entry?.generatedText && !entry?.editedText && (
         <div className="rounded-[28px] border border-slate-200 bg-slate-50/50 p-6 space-y-4 animate-pulse">
           <div className="h-5 w-48 rounded-lg bg-slate-200" />
           <div className="h-24 w-full rounded-xl bg-slate-200" />
@@ -197,7 +219,7 @@ export function TodayClient({
 
       {/* Formatted Supervisor-Ready Section */}
       <AnimatePresence>
-        {entry?.generatedText && (
+        {entry && (entry.generatedText || entry.editedText) && (
           <motion.section
             initial={{ opacity: 0, scale: 0.98, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}

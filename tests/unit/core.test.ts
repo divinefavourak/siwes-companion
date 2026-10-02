@@ -9,6 +9,7 @@ import {
   isWorkingDate,
   parseDateOnly,
   programmeProgress,
+  startOfWeek,
   toDateOnly,
   weekday,
   workingDates,
@@ -17,7 +18,8 @@ import {
 import { randomIdGenerator } from "@/src/core/shared/id";
 import { createProgramme, createProgrammeSchema, updateProgrammeSettings } from "@/src/core/siwes/siwes-service";
 import type { CreateProgrammeInput, Programme, ProgrammeRepository } from "@/src/core/siwes/types";
-import { captureDailyNote, generateEntry, saveEditedEntry } from "@/src/core/entries/entry-service";
+import { assertLoggableWorkDate, captureDailyNote, generateEntry, saveEditedEntry } from "@/src/core/entries/entry-service";
+import { TIMEZONE_GROUPS, isListedTimeZone, isValidTimeZone } from "@/src/core/shared/timezones";
 import { generatedEntrySchema } from "@/src/core/entries/entry-schema";
 import type { DailyEntryGenerator, Entry, EntryRepository, GeneratedEntry } from "@/src/core/entries/types";
 import { dailyEntryPrompt, groundedSystemPrompt } from "@/src/core/ai/prompts";
@@ -142,6 +144,27 @@ describe("date rules", () => {
     expect(isDateInProgramme(calendar, "2026-09-01")).toBe(true);
     expect(isDateInProgramme(calendar, "2026-09-11")).toBe(false);
   });
+
+  it("finds the Monday of a week", () => {
+    expect(startOfWeek("2026-09-02")).toBe("2026-08-31");
+    expect(startOfWeek("2026-08-31")).toBe("2026-08-31");
+    expect(startOfWeek("2026-09-06")).toBe("2026-08-31");
+  });
+
+  it("supports East African and other listed timezones", () => {
+    expect(dateFromTimestampInTimeZone(new Date("2026-09-20T21:30:00.000Z"), "Africa/Nairobi")).toBe("2026-09-21");
+    expect(isListedTimeZone("Africa/Nairobi")).toBe(true);
+    expect(isValidTimeZone("Not/AZone")).toBe(false);
+    for (const zone of TIMEZONE_GROUPS.flatMap((group) => group.zones)) {
+      expect(isValidTimeZone(zone.value)).toBe(true);
+    }
+  });
+
+  it("allows back-filling past programme days but not future or outside dates", () => {
+    expect(() => assertLoggableWorkDate(calendar, "2026-09-02", "2026-09-08")).not.toThrow();
+    expect(() => assertLoggableWorkDate(calendar, "2026-09-09", "2026-09-08")).toThrow(AppError);
+    expect(() => assertLoggableWorkDate(calendar, "2026-08-31", "2026-09-08")).toThrow(AppError);
+  });
 });
 
 describe("shared errors and IDs", () => {
@@ -189,6 +212,8 @@ describe("programme service", () => {
     });
     expect(updated.workingWeekdays).toEqual([1, 2, 3, 4, 5, 6]);
     expect(updated.timezone).toBe("UTC");
+    await expect(updateProgrammeSettings(repository, { userId: "user-1", programmeId: "programme-1", timezone: "Mars/Olympus" })).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    expect((await updateProgrammeSettings(repository, { userId: "user-1", programmeId: "programme-1", timezone: "Africa/Kampala" })).timezone).toBe("Africa/Kampala");
   });
 });
 

@@ -1,35 +1,83 @@
 import { getViewer } from "@/src/lib/viewer";
 import { getRepositories } from "@/src/adapters/web/repositories";
-import { dateFromTimestampInTimeZone, workingDates } from "@/src/core/shared/date";
+import {
+  addDays,
+  dateFromTimestampInTimeZone,
+  dateRange,
+  formatDateOnly,
+  isWorkingDate,
+  parseDateOnly,
+  startOfWeek,
+  workingDates,
+  type DateOnly
+} from "@/src/core/shared/date";
 import { HistoryTabs } from "@/src/components/history-tabs";
 import { currentEntryText } from "@/src/core/entries/entry-text";
 
-export default async function HistoryPage() {
+function safeDate(value: string | undefined): DateOnly | null {
+  if (!value) return null;
+  try {
+    return parseDateOnly(value);
+  } catch {
+    return null;
+  }
+}
+
+export default async function HistoryPage({ searchParams }: { searchParams: Promise<{ week?: string }> }) {
   const viewer = await getViewer();
   if (!viewer) return null;
   const repositories = getRepositories();
   const programme = await repositories.programmes.findActiveByUser(viewer.id);
   if (!programme) return <div className="rounded-3xl bg-white p-8">Create your SIWES programme first.</div>;
 
+  const params = await searchParams;
   const today = dateFromTimestampInTimeZone(new Date(), programme.timezone);
-  const dates = workingDates(programme).filter((date) => date <= today).slice(-14).reverse();
-  const entries = await repositories.entries.listForDateRange(
+  const lastLoggableDay = today < programme.endDate ? today : programme.endDate;
+
+  // Clamp the requested week into the programme so navigation never leaves it.
+  const requested = safeDate(params.week) ?? lastLoggableDay;
+  const anchor =
+    requested < programme.startDate ? programme.startDate : requested > lastLoggableDay ? lastLoggableDay : requested;
+  const weekStart = startOfWeek(anchor);
+  const weekEnd = addDays(weekStart, 6);
+  const firstWeekStart = startOfWeek(programme.startDate);
+  const lastWeekStart = startOfWeek(lastLoggableDay);
+
+  const elapsedWorkingDates = workingDates(programme).filter((date) => date <= today);
+  const allEntries = await repositories.entries.listForDateRange(
     viewer.id,
     programme.id,
-    dates.at(-1) ?? programme.startDate,
-    today
+    programme.startDate,
+    lastLoggableDay
   );
-  const entryByDate = new Map(entries.map((entry) => [entry.workDate, entry]));
+  const entryByDate = new Map(allEntries.map((entry) => [entry.workDate, entry]));
 
-  const entryItems = dates.map((date) => {
+  const weekDates = dateRange(weekStart, weekEnd).filter(
+    (date) =>
+      date >= programme.startDate &&
+      date <= programme.endDate &&
+      (isWorkingDate(programme, date) || entryByDate.has(date))
+  );
+
+  const entryItems = weekDates.map((date) => {
     const entry = entryByDate.get(date);
     return {
       date,
-      weekday: new Date(`${date}T00:00:00`).toLocaleDateString("en-NG", { weekday: "long" }),
-      saved: entry?.status === "SAVED",
-      previewText: entry ? (currentEntryText(entry) ?? entry.rawText) : "No note yet"
+      weekday: formatDateOnly(date, { weekday: "long" }),
+      label: formatDateOnly(date, { day: "numeric", month: "short", year: "numeric" }),
+      status: date > today ? ("UPCOMING" as const) : entry?.status === "SAVED" ? ("SAVED" as const) : entry ? ("DRAFT" as const) : ("MISSING" as const),
+      previewText: entry ? (currentEntryText(entry) ?? entry.rawText) : date > today ? "Not yet" : "No note yet"
     };
   });
+
+  const missingDates = elapsedWorkingDates
+    .filter((date) => entryByDate.get(date)?.status !== "SAVED")
+    .reverse()
+    .map((date) => ({
+      date,
+      label: formatDateOnly(date, { weekday: "short", day: "numeric", month: "short" }),
+      weekStart: startOfWeek(date)
+    }));
 
   return (
     <div className="space-y-8">
@@ -39,13 +87,23 @@ export default async function HistoryPage() {
           History that Remembers for You
         </h1>
         <p className="mt-2 text-sm leading-6 text-muted max-w-xl">
-          Review saved entries, synthesize weekly rollups, and inspect monthly summaries to ensure an accurate, verified timeline.
+          Browse any week of your placement, fill in days you missed, and edit saved entries. Weekly and monthly rollups follow the week you pick.
         </p>
       </div>
 
       <HistoryTabs
         dates={entryItems}
+        missingDates={missingDates}
+        week={{
+          start: weekStart,
+          end: weekEnd,
+          label: `${formatDateOnly(weekStart, { day: "numeric", month: "short" })} – ${formatDateOnly(weekEnd, { day: "numeric", month: "short", year: "numeric" })}`,
+          prev: weekStart > firstWeekStart ? addDays(weekStart, -7) : null,
+          next: weekStart < lastWeekStart ? addDays(weekStart, 7) : null,
+          isCurrent: weekStart === lastWeekStart
+        }}
         programmeStartDate={programme.startDate}
+        programmeEndDate={lastLoggableDay}
         today={today}
       />
     </div>

@@ -1,5 +1,5 @@
 import { AppError } from "@/src/core/shared/errors";
-import { parseDateOnly } from "@/src/core/shared/date";
+import { isDateInProgramme, parseDateOnly, type DateOnly, type ProgrammeCalendar } from "@/src/core/shared/date";
 import { captureDailyNoteSchema, generatedEntrySchema } from "@/src/core/entries/entry-schema";
 import type {
   CaptureDailyNoteInput,
@@ -8,6 +8,16 @@ import type {
   EntryRepository,
   GeneratedEntry
 } from "@/src/core/entries/types";
+
+/** Entries can be written for any past or current day of the programme, never for the future. */
+export function assertLoggableWorkDate(calendar: ProgrammeCalendar, workDate: DateOnly, today: DateOnly): void {
+  if (!isDateInProgramme(calendar, workDate)) {
+    throw new AppError("VALIDATION_ERROR", "That date is outside your SIWES programme");
+  }
+  if (workDate > today) {
+    throw new AppError("VALIDATION_ERROR", "You can't log an entry for a future date");
+  }
+}
 
 export async function captureDailyNote(
   repository: EntryRepository,

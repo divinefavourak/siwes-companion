@@ -35,7 +35,9 @@ export function SetupForm() {
       body: JSON.stringify({
         ...form,
         durationMonths: Number(form.durationMonths),
-        workingWeekdays: [1, 2, 3, 4, 5]
+        workingWeekdays: [1, 2, 3, 4, 5],
+        // Start from the device's zone (e.g. Africa/Nairobi); it can be changed in settings.
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || undefined
       })
     });
     const payload = (await response.json()) as { error?: { message?: string } };
