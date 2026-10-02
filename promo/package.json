@@ -1,0 +1,14 @@
+{
+  "name": "siwes-film",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "render": "node render.mjs",
+    "sfx": "node sfx.mjs",
+    "mix": "node mix.mjs music.mp3 --offset 1.025 --out siwes-film-final.mp4",
+    "build": "node render.mjs && node sfx.mjs && node mix.mjs music.mp3 --offset 1.025 --out siwes-film-final.mp4"
+  },
+  "dependencies": {
+    "puppeteer-core": "^23.11.1"
+  }
+}
