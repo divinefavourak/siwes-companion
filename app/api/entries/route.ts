@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { captureDailyNote } from "@/src/core/entries/entry-service";
+import { assertLoggableWorkDate, captureDailyNote } from "@/src/core/entries/entry-service";
 import { getRepositories } from "@/src/adapters/web/repositories";
 import { getViewer } from "@/src/lib/viewer";
 import { dateFromTimestampInTimeZone, parseDateOnly } from "@/src/core/shared/date";
@@ -13,7 +13,9 @@ export async function POST(request: Request) {
     const programme = await repositories.programmes.findActiveByUser(viewer.id);
     if (!programme) return NextResponse.json({ error: { code: "NOT_FOUND", message: "Create a SIWES programme first" } }, { status: 404 });
     const body = await request.json();
-    const workDate = body.workDate ? parseDateOnly(String(body.workDate)) : dateFromTimestampInTimeZone(new Date(), programme.timezone);
+    const today = dateFromTimestampInTimeZone(new Date(), programme.timezone);
+    const workDate = body.workDate ? parseDateOnly(String(body.workDate)) : today;
+    assertLoggableWorkDate(programme, workDate, today);
     const entry = await captureDailyNote(repositories.entries, {
       userId: viewer.id,
       programmeId: programme.id,

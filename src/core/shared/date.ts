@@ -106,3 +106,13 @@ export function daysBetween(start: DateOnly, end: DateOnly): number {
   const endMs = new Date(`${end}T00:00:00.000Z`).getTime();
   return Math.round((endMs - startMs) / DAY_IN_MS);
 }
+
+/** Monday of the ISO week containing `value`. */
+export function startOfWeek(value: DateOnly): DateOnly {
+  const offset = (weekday(value) + 6) % 7;
+  return addDays(value, -offset);
+}
+
+export function formatDateOnly(value: DateOnly, options: Intl.DateTimeFormatOptions): string {
+  return new Date(`${value}T00:00:00.000Z`).toLocaleDateString("en-GB", { ...options, timeZone: "UTC" });
+}

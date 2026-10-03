@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { env } from "@/src/lib/env";
 import { getViewer } from "@/src/lib/viewer";
 import { prisma } from "@/src/lib/prisma";
-import { runDailyReminderSweep } from "@/src/core/notifications/notification-service";
+import { runCatchUpSweep, runDailyReminderSweep } from "@/src/core/notifications/notification-service";
 import type { Prisma } from "@prisma/client";
 
 async function isAuthorized(request: Request): Promise<boolean> {
@@ -41,21 +41,25 @@ export async function POST(request: Request) {
     }
 
     const sweepResult = await runDailyReminderSweep({ dateOverride });
+    const catchUpResult = await runCatchUpSweep({ dateOverride });
+
+    const errors = [...sweepResult.errors, ...catchUpResult.errors];
 
     // Record job execution in database
     await prisma.job.create({
       data: {
         type: "SEND_REMINDER",
-        status: sweepResult.errors.length > 0 ? "FAILED" : "SUCCEEDED",
-        payload: sweepResult as unknown as Prisma.InputJsonValue,
+        status: errors.length > 0 ? "FAILED" : "SUCCEEDED",
+        payload: { ...sweepResult, catchUp: catchUpResult } as unknown as Prisma.InputJsonValue,
         completedAt: new Date(),
-        lastError: sweepResult.errors.length > 0 ? sweepResult.errors.join("; ") : null,
+        lastError: errors.length > 0 ? errors.join("; ") : null,
       },
     });
 
     return NextResponse.json({
       ok: true,
       sweepResult,
+      catchUpResult,
     });
   } catch (error) {
     console.error("Failed to execute daily reminder sweep:", error);

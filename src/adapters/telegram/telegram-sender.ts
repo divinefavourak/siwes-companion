@@ -1,7 +1,7 @@
 import { Bot } from "grammy";
 import { env } from "@/src/lib/env";
 import type { DateOnly } from "@/src/core/shared/date";
-import { reminderView, testNotificationView, type View } from "@/src/adapters/telegram/views";
+import { catchUpView, reminderView, testNotificationView, type View } from "@/src/adapters/telegram/views";
 
 /**
  * Push a card to a student outside of a conversation (reminders, confirmations).
@@ -39,4 +39,25 @@ export async function sendTelegramDailyReminder(input: {
 
 export async function sendTelegramTestMessage(input: { telegramUserId: string; studentName?: string | null }): Promise<boolean> {
   return sendTelegramView(input.telegramUserId, testNotificationView(input.studentName));
+}
+
+export async function sendTelegramCatchUpReminder(input: {
+  telegramUserId: string;
+  studentName?: string | null;
+  title: string;
+  message: string;
+  missingThisWeek: DateOnly[];
+  weekStart: DateOnly;
+}): Promise<boolean> {
+  return sendTelegramView(
+    input.telegramUserId,
+    catchUpView({
+      name: input.studentName,
+      title: input.title,
+      message: input.message,
+      missingThisWeek: input.missingThisWeek,
+      historyUrl: `${env.appUrl}/dashboard/history?week=${input.weekStart}`,
+      dayUrl: (date) => `${env.appUrl}/dashboard/today?date=${date}`
+    })
+  );
 }

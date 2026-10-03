@@ -545,6 +545,24 @@ export function reminderView(input: { name?: string | null; organization?: strin
   };
 }
 
+/** Weekly catch-up nudge. Back-filling happens on the web, so the buttons open those pages directly. */
+export function catchUpView(input: {
+  name?: string | null;
+  title: string;
+  message: string;
+  missingThisWeek: DateOnly[];
+  historyUrl: string;
+  dayUrl: (date: DateOnly) => string;
+}): View {
+  const keyboard = new InlineKeyboard();
+  input.missingThisWeek.slice(0, 3).forEach((date) => keyboard.url(shortDate(date), input.dayUrl(date)));
+  keyboard.row().url("Open history", input.historyUrl);
+  return {
+    text: compose(header(input.title), `${input.name ? `Hi ${esc(input.name)}. ` : ""}${esc(input.message)}`),
+    keyboard
+  };
+}
+
 export function testNotificationView(name?: string | null): View {
   return {
     text: compose(

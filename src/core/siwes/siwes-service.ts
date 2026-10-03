@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { AppError } from "@/src/core/shared/errors";
 import { parseDateOnly } from "@/src/core/shared/date";
+import { DEFAULT_TIMEZONE, isValidTimeZone } from "@/src/core/shared/timezones";
 import type { CreateProgrammeInput, Programme, ProgrammeRepository } from "@/src/core/siwes/types";
 
 export const createProgrammeSchema = z.object({
@@ -28,7 +29,7 @@ export const createProgrammeSchema = z.object({
       return false;
     }
   }, "Use YYYY-MM-DD"),
-  timezone: z.string().min(1).default("Africa/Lagos"),
+  timezone: z.string().min(1).refine(isValidTimeZone, "Unknown timezone").default(DEFAULT_TIMEZONE),
   workingWeekdays: z.array(z.number().int().min(0).max(6)).min(1).max(7).default([1, 2, 3, 4, 5])
 });
 
@@ -63,7 +64,7 @@ export const updateProgrammeSettingsSchema = z.object({
   userId: z.string().min(1),
   programmeId: z.string().min(1),
   workingWeekdays: z.array(z.number().int().min(0).max(6)).min(1).max(7).optional(),
-  timezone: z.string().min(1).optional()
+  timezone: z.string().min(1).refine(isValidTimeZone, "Unknown timezone").optional()
 }).refine((data) => data.workingWeekdays !== undefined || data.timezone !== undefined, {
   message: "At least one setting must be provided to update"
 });

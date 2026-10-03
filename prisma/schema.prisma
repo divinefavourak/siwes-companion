@@ -91,6 +91,21 @@ enum DefenseStatus {
   ABANDONED
 }
 
+enum ProjectKind {
+  CISCO_LAB
+  PHYSICAL_LAB
+  PROGRAMMING
+  RESEARCH
+  OTHER
+}
+
+enum TaskColumn {
+  BACKLOG
+  IN_PROGRESS
+  BLOCKED
+  DONE
+}
+
 enum NotificationType {
   INFO
   REMINDER
@@ -322,14 +337,34 @@ model Project {
   name        String
   description String?
   status      String?
+  kind        ProjectKind    @default(OTHER)
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
   programme   SiwesProgramme @relation(fields: [programmeId], references: [id], onDelete: Cascade)
   entries     EntryProject[]
   evidence    Evidence[]
+  tasks       ProjectTask[]
 
   @@unique([programmeId, name])
   @@index([programmeId, name])
+}
+
+model ProjectTask {
+  id           String     @id @default(cuid())
+  projectId    String
+  title        String
+  description  String?
+  column       TaskColumn @default(BACKLOG)
+  position     Int        @default(0)
+  checklist    Json       @default("[]")
+  dueDate      DateTime?  @db.Date
+  completedAt  DateTime?
+  lastLoggedOn DateTime?  @db.Date
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  project      Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, column, position])
 }
 
 model EntryProject {

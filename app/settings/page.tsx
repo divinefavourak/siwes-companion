@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Bell, Check, ChevronRight, Copy, ExternalLink, KeyRound, Mail, RefreshCw, Send, ShieldCheck, Sparkles, Unlink } from "lucide-react";
 import type { Programme } from "@/src/core/siwes/types";
+import { TIMEZONE_GROUPS, isListedTimeZone } from "@/src/core/shared/timezones";
 
 const WEEKDAYS = [
   { day: 1, label: "Monday", short: "Mon" },
@@ -370,8 +371,14 @@ export default function SettingsPage() {
                 onChange={(e) => setTimezone(e.target.value)}
                 className="w-full sm:w-72 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-brand focus:bg-white"
               >
-                <option value="Africa/Lagos">Africa/Lagos (WAT, UTC+1)</option>
-                <option value="UTC">UTC (Universal Time)</option>
+                {!isListedTimeZone(timezone) && <option value={timezone}>{timezone}</option>}
+                {TIMEZONE_GROUPS.map((group) => (
+                  <optgroup key={group.region} label={group.region}>
+                    {group.zones.map((zone) => (
+                      <option key={zone.value} value={zone.value}>{zone.label}</option>
+                    ))}
+                  </optgroup>
+                ))}
               </select>
             </div>
 
