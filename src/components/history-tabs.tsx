@@ -13,6 +13,7 @@ import {
   ChevronRight,
   CircleDashed,
   Clock,
+  FileDown,
   Layers,
   Pencil,
   Tag,
@@ -149,6 +150,14 @@ export function HistoryTabs({
             }}
             className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-brand focus:bg-white min-h-[40px]"
           />
+          <a
+            href={`/api/logbook/pdf?from=${weekFrom}&to=${weekTo}`}
+            download
+            title="Download this week as a logbook PDF"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 min-h-[40px]"
+          >
+            <FileDown className="size-3.5" /> Week PDF
+          </a>
           {!week.isCurrent && (
             <Link
               href="/dashboard/history"
