@@ -4,6 +4,8 @@ import { getViewer } from "@/src/lib/viewer";
 import { getRepositories } from "@/src/adapters/web/repositories";
 import { dashboardProgress, phaseFor, phaseLabel } from "@/src/lib/dashboard";
 import { dateFromTimestampInTimeZone, workingDates } from "@/src/core/shared/date";
+import { buildHeatmap, computeStreaks } from "@/src/core/progress/streaks";
+import { ActivityHeatmap } from "@/src/components/activity-heatmap";
 import {
   DashboardMotionContainer,
   AnimatedProgressCard,
@@ -30,6 +32,12 @@ export default async function DashboardPage() {
   const entryByDate = new Map(entries.map((entry) => [entry.workDate, entry]));
   const compileUnlocked = phase === "COMPILE" || phase === "DEFEND";
   const defendUnlocked = phase === "DEFEND";
+  const streaks = computeStreaks(
+    programme,
+    entries.filter((entry) => entry.status === "SAVED").map((entry) => entry.workDate),
+    today
+  );
+  const heatmap = buildHeatmap(programme, entries, today);
 
   return (
     <DashboardMotionContainer>
@@ -118,6 +126,10 @@ export default async function DashboardPage() {
           </div>
         </AnimatedMotionItem>
       </section>
+
+      <AnimatedMotionItem>
+        <ActivityHeatmap weeks={heatmap} streaks={streaks} today={today} />
+      </AnimatedMotionItem>
 
       {/* Primary Workspaces Grid */}
       <section className="grid gap-5 md:grid-cols-3">
