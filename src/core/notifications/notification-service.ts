@@ -1,7 +1,8 @@
 import { prisma } from "@/src/lib/prisma";
 import type { NotificationType, Prisma } from "@prisma/client";
 import { dateFromTimestampInTimeZone, parseDateOnly, weekday, toDateOnly, type DateOnly } from "@/src/core/shared/date";
-import { sendTelegramDailyReminder } from "@/src/adapters/telegram/telegram-sender";
+import { sendTelegramCatchUpReminder, sendTelegramDailyReminder } from "@/src/adapters/telegram/telegram-sender";
+import { describeCatchUp, planCatchUp } from "@/src/core/progress/catch-up";
 import { sendEmail } from "@/src/lib/email";
 import { renderBrandedEmail } from "@/src/lib/email-templates";
 import { env } from "@/src/lib/env";
@@ -287,6 +288,140 @@ export async function runDailyReminderSweep(options?: { dateOverride?: string })
           to: programme.user.email,
           subject: `Daily SIWES Logbook Reminder — ${workDate}`,
           html: emailHtml,
+        });
+        if (emailRes.success) result.emailSent++;
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      result.errors.push(`Programme ${programme.id}: ${message}`);
+    }
+  }
+
+  return result;
+}
+
+export interface CatchUpSweepResult {
+  date: string;
+  totalProgrammesChecked: number;
+  remindersSent: number;
+  telegramSent: number;
+  emailSent: number;
+  skippedNothingMissing: number;
+  skippedAlreadyReminded: number;
+  errors: string[];
+}
+
+/**
+ * On each programme's last working day of the week, nudges students who still have
+ * unsaved working days, listing them with direct links. Sent at most once per week.
+ */
+export async function runCatchUpSweep(options?: { dateOverride?: string }): Promise<CatchUpSweepResult> {
+  const result: CatchUpSweepResult = {
+    date: options?.dateOverride || toDateOnly(new Date()),
+    totalProgrammesChecked: 0,
+    remindersSent: 0,
+    telegramSent: 0,
+    emailSent: 0,
+    skippedNothingMissing: 0,
+    skippedAlreadyReminded: 0,
+    errors: [],
+  };
+
+  const activeProgrammes = await prisma.siwesProgramme.findMany({
+    where: { status: "ACTIVE" },
+    include: {
+      user: { include: { telegramIdentity: true, notificationPreference: true } },
+      workingDays: true,
+    },
+  });
+  result.totalProgrammesChecked = activeProgrammes.length;
+
+  for (const programme of activeProgrammes) {
+    try {
+      const today = options?.dateOverride
+        ? parseDateOnly(options.dateOverride)
+        : dateFromTimestampInTimeZone(new Date(), programme.timezone || "Africa/Lagos");
+      const calendar = {
+        startDate: toDateOnly(programme.startDate),
+        endDate: toDateOnly(programme.endDate),
+        timezone: programme.timezone,
+        workingWeekdays: (Array.isArray(programme.workingWeekdays) ? programme.workingWeekdays : [1, 2, 3, 4, 5]) as number[],
+        overrides: programme.workingDays.map((day) => ({ date: toDateOnly(day.date), status: day.status })),
+      };
+      if (today < calendar.startDate || today > calendar.endDate) continue;
+
+      const saved = await prisma.entry.findMany({
+        where: { programmeId: programme.id, status: "SAVED", workDate: { lte: new Date(`${today}T00:00:00.000Z`) } },
+        select: { workDate: true },
+      });
+      const plan = planCatchUp(calendar, saved.map((entry) => toDateOnly(entry.workDate)), today);
+      if (!plan) {
+        result.skippedNothingMissing++;
+        continue;
+      }
+
+      const already = await prisma.notification.findFirst({
+        where: {
+          userId: programme.userId,
+          AND: [
+            { metadata: { path: ["kind"], equals: "CATCH_UP" } },
+            { metadata: { path: ["weekStart"], equals: plan.weekStart } },
+          ],
+        },
+        select: { id: true },
+      });
+      if (already) {
+        result.skippedAlreadyReminded++;
+        continue;
+      }
+
+      const { title, message } = describeCatchUp(plan);
+      const historyLink = `/dashboard/history?week=${plan.weekStart}`;
+      await createNotification({
+        userId: programme.userId,
+        title,
+        message,
+        type: "ACTION_REQUIRED",
+        link: historyLink,
+        metadata: {
+          kind: "CATCH_UP",
+          weekStart: plan.weekStart,
+          programmeId: programme.id,
+          missingThisWeek: plan.missingThisWeek,
+          olderMissingCount: plan.olderMissing.length,
+        },
+      });
+      result.remindersSent++;
+
+      const pref = programme.user.notificationPreference;
+      const telegramIdentity = programme.user.telegramIdentity;
+      if ((pref ? pref.dailyReminderTelegram : true) && telegramIdentity?.telegramUserId) {
+        const sent = await sendTelegramCatchUpReminder({
+          telegramUserId: telegramIdentity.telegramUserId,
+          studentName: programme.user.name,
+          title,
+          message,
+          missingThisWeek: plan.missingThisWeek,
+          weekStart: plan.weekStart,
+        });
+        if (sent) result.telegramSent++;
+      }
+
+      if ((pref ? pref.weeklyRollupEmail : true) && programme.user.email) {
+        const dayLinks = plan.missingThisWeek
+          .map((date) => `<li><a href="${env.appUrl}/dashboard/today?date=${date}">${date}</a></li>`)
+          .join("");
+        const emailRes = await sendEmail({
+          to: programme.user.email,
+          subject: title,
+          html: renderBrandedEmail({
+            title: "Weekly logbook catch-up",
+            greeting: `Hello ${programme.user.name || "Student"},`,
+            bodyHtml: `<p>${message}</p>${dayLinks ? `<ul>${dayLinks}</ul>` : ""}`,
+            actionUrl: `${env.appUrl}${historyLink}`,
+            actionLabel: "Open this week in History",
+            footerNote: "You can turn weekly emails off anytime in your account Settings.",
+          }),
         });
         if (emailRes.success) result.emailSent++;
       }
