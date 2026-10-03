@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import type { Route } from "next";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
@@ -112,7 +113,7 @@ export function TodayClient({
         <div>
           {!isToday && (
             <Link
-              href={historyHref}
+              href={historyHref as Route}
               className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800"
             >
               <ArrowLeft className="size-3.5" /> Back to history
