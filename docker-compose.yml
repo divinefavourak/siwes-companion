@@ -14,10 +14,12 @@ services:
       timeout: 5s
       retries: 12
 
+  # Both images are built by GitHub Actions and pulled from GHCR. Nothing here
+  # builds on the server: a Next.js build needs more memory than the VPS has.
+  # Set IMAGE_TAG in .env (for example sha-3a23476) to pin both to one commit.
+  # To build locally instead, add -f docker-compose.build.yml.
   migrator:
-    build:
-      context: .
-      target: migrator
+    image: ghcr.io/divinefavourak/siwes-companion:migrator-${IMAGE_TAG:-latest}
     restart: "no"
     depends_on:
       postgres:
@@ -29,7 +31,7 @@ services:
     command: ["npx", "prisma", "migrate", "deploy"]
 
   app:
-    build: .
+    image: ghcr.io/divinefavourak/siwes-companion:${IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -59,6 +61,7 @@ services:
 
   # Optional: Long-polling Telegram bot (if not using Telegram webhook)
   # Run alongside app with: docker compose --profile bot-polling up -d
+  # This one still builds from source, so only use it on a machine with RAM to spare.
   bot-polling:
     build:
       context: .

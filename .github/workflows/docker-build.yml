@@ -92,3 +92,28 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # The migrator applies database migrations before the app starts. It is a
+      # separate Dockerfile stage, published under migrator-* tags of the same
+      # package so the server never has to build it either.
+      - name: Extract metadata for the migrator image
+        id: meta-migrator
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
+        with:
+          images: ghcr.io/${{ github.repository }}
+          flavor: |
+            latest=false
+          tags: |
+            type=raw,value=migrator-latest
+            type=sha,format=short,prefix=migrator-sha-
+
+      - name: Build and Push Migrator Image
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
+        with:
+          context: .
+          target: migrator
+          push: true
+          tags: ${{ steps.meta-migrator.outputs.tags }}
+          labels: ${{ steps.meta-migrator.outputs.labels }}
+          cache-from: type=gha,scope=migrator
+          cache-to: type=gha,mode=max,scope=migrator

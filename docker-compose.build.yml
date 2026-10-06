@@ -1,0 +1,12 @@
+# Builds the images from source instead of pulling them from GHCR.
+# For a development machine only; a 2GB VPS does not have the memory for it.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+services:
+  migrator:
+    build:
+      context: .
+      target: migrator
+
+  app:
+    build: .
