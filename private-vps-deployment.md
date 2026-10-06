@@ -19,7 +19,9 @@ Telegram -> https://swcompanion.akanbi.dev/api/telegram/webhook -> Next.js webho
 
 ## 2. Low-RAM VPS Optimizations (2GB VPS)
 
-If deploying to a 2GB RAM VPS or container (LXC/OpenVZ):
+Images are built by GitHub Actions and pulled from GHCR. **Never build on a 2GB VPS**: a Next.js build needs 1–2 GB by itself and will exhaust memory. `docker-compose.yml` has no `build:` for the app or migrator, so `docker compose up` cannot start one by accident.
+
+The settings below keep builds small wherever they do run:
 1. **Docker Builder RAM Cap**: The Dockerfile builder sets `NODE_OPTIONS="--max-old-space-size=768"` to prevent memory spikes.
 2. **Next.js Worker Cap**: `next.config.ts` sets `cpus: 1`, `workerThreads: false`, and `typescript: { ignoreBuildErrors: true }`.
 3. **Dedicated Migrator**: The `migrator` stage does not compile Next.js, saving ~1.5 GB of RAM during boot.
@@ -75,12 +77,14 @@ systemctl restart cloudflared
 
 ---
 
-## 5. Build, Migrate, and Start Stack
+## 5. Pull, Migrate, and Start Stack
 
-Run with a single command:
 ```bash
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
+
+The images are public, so no registry login is needed. If the pull fails with `denied`, an expired `ghcr.io` login is saved on the server: run `docker logout ghcr.io` and pull again.
 
 Container startup order:
 1. `postgres` boots and passes its healthcheck (`service_healthy`).
@@ -133,11 +137,19 @@ curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/setWebhook" \
 
 ## 7. Updates and Maintenance
 
-To deploy new code from `main`:
+To deploy new code from `main`, wait for the "Build and Push Docker Image" workflow to finish, then:
 ```bash
 cd /opt/siwes-companion
 git pull origin main
-docker compose up -d --build app
+docker compose pull
+docker compose up -d
+```
+
+To roll back, set `IMAGE_TAG=sha-<commit>` in `.env` (the short commit of the version you want) and run the last two commands again. Remove the line to return to `latest`.
+
+To build from source on a machine with enough memory:
+```bash
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 
 Check health:

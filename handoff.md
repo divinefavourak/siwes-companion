@@ -162,8 +162,11 @@ CLOUDFLARE_TUNNEL_TOKEN=""
 ```bash
 cd /opt/siwes-companion
 git pull origin main
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
+
+Images come from GHCR, built by GitHub Actions. Do not build on the VPS; see `private-vps-deployment.md`.
 
 ### Check Logs & Status
 
